@@ -5,12 +5,24 @@
  * Manages demo flow state for lender and borrower views
  */
 
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
 // Type definitions for demo steps
 type LenderStep = 'empty' | 'pool-created' | 'funded' | 'loan-request' | 'loan-approved'
-type BorrowerStep = 'empty' | 'pending' | 'approved' | 'payment-made'
+type BorrowerStep = 'empty' | 'browsing' | 'pending' | 'approved' | 'payment-made'
 type ViewMode = 'lender' | 'borrower'
+
+// Pool type
+interface Pool {
+  id: string
+  name: string
+  liquidity: number
+  interestRate: number
+  maxTerm: number
+  minLoan: number
+  maxLoan: number
+  lender: string
+}
 
 // Notification type
 interface Notification {
@@ -37,6 +49,12 @@ interface DemoContextType {
   currentDashboard: string
   setCurrentDashboard: (dashboard: string) => void
 
+  // Pools
+  pools: Pool[]
+  addPool: (pool: Pool) => void
+  selectedPool: Pool | null
+  setSelectedPool: (pool: Pool | null) => void
+
   // Notification handler
   onNotificationAdd: (notification: Notification) => void
 
@@ -61,6 +79,42 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [viewMode, setViewMode] = useState<ViewMode>('lender')
   const [currentDashboard, setCurrentDashboard] = useState('overview')
   const [notifications, setNotifications] = useState<Notification[]>([])
+  
+  // Initial demo pools
+  const [pools, setPools] = useState<Pool[]>([
+    {
+      id: 'pool-1',
+      name: 'Community Growth Pool',
+      liquidity: 5000,
+      interestRate: 4.5,
+      maxTerm: 180,
+      minLoan: 50,
+      maxLoan: 1000,
+      lender: 'Community'
+    },
+    {
+      id: 'pool-2',
+      name: 'Small Business Fund',
+      liquidity: 3000,
+      interestRate: 5.2,
+      maxTerm: 120,
+      minLoan: 100,
+      maxLoan: 500,
+      lender: 'Sarah Chen'
+    },
+    {
+      id: 'pool-3',
+      name: 'Quick Loans Pool',
+      liquidity: 2000,
+      interestRate: 6.8,
+      maxTerm: 60,
+      minLoan: 25,
+      maxLoan: 300,
+      lender: 'QuickFund'
+    }
+  ])
+  
+  const [selectedPool, setSelectedPool] = useState<Pool | null>(null)
 
   // Add notification handler
   const onNotificationAdd = useCallback((notification: Notification) => {
@@ -87,6 +141,27 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setNotifications([])
   }, [])
 
+  // Add pool
+  const addPool = useCallback((pool: Pool) => {
+    setPools((prev) => [...prev, pool])
+  }, [])
+
+  // Auto-sync flows: when borrower applies, notify lender
+  useEffect(() => {
+    if (borrowerStep === 'pending' && lenderStep === 'pool-created') {
+      // Borrower just applied, show loan request to lender
+      setLenderStep('loan-request')
+    }
+  }, [borrowerStep, lenderStep])
+
+  // Auto-sync flows: when lender approves, notify borrower
+  useEffect(() => {
+    if (lenderStep === 'loan-approved' && borrowerStep === 'pending') {
+      // Lender just approved, update borrower
+      setBorrowerStep('approved')
+    }
+  }, [lenderStep, borrowerStep])
+
   // Handle next action in demo flow
   const handleNextAction = useCallback(() => {
     if (viewMode === 'lender') {
@@ -109,6 +184,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setViewMode,
     currentDashboard,
     setCurrentDashboard,
+    pools,
+    addPool,
+    selectedPool,
+    setSelectedPool,
     onNotificationAdd,
     notifications,
     clearNotifications,

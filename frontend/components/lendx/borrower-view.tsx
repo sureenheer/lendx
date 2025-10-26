@@ -20,11 +20,12 @@ import {
 import { useDemoContext } from "@/lib/demo-context"
 
 export default function BorrowerView() {
-  const { borrowerStep, setBorrowerStep, setCurrentDashboard, onNotificationAdd, viewMode } = useDemoContext()
+  const { borrowerStep, setBorrowerStep, setCurrentDashboard, onNotificationAdd, viewMode, pools, selectedPool, setSelectedPool } = useDemoContext()
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [loanAmount, setLoanAmount] = useState("100")
   const [loanPurpose, setLoanPurpose] = useState("Buy a new sewing machine for my tailoring business")
+  const [selectedPoolForApplication, setSelectedPoolForApplication] = useState<typeof pools[0] | null>(null)
 
   // Set current dashboard to borrower when component mounts
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function BorrowerView() {
   const getStats = () => {
     switch (borrowerStep) {
       case "empty":
+      case "browsing":
       case "pending":
         return {
           activeLoans: 0,
@@ -44,14 +46,14 @@ export default function BorrowerView() {
         }
       case "approved":
         return {
-          activeLoans: 100,
+          activeLoans: parseFloat(loanAmount),
           totalRepaid: 0,
           nextPaymentDue: "Nov 25, 2025",
         }
       case "payment-made":
         return {
-          activeLoans: 90,
-          totalRepaid: 10,
+          activeLoans: parseFloat(loanAmount) * 0.9,
+          totalRepaid: parseFloat(loanAmount) * 0.1,
           nextPaymentDue: "Dec 25, 2025",
         }
       default:
@@ -65,16 +67,26 @@ export default function BorrowerView() {
 
   const stats = getStats()
 
-  const handleApplyClick = () => {
+  const handleBrowsePoolsClick = () => {
+    setBorrowerStep("browsing")
+  }
+
+  const handleSelectPool = (pool: typeof pools[0]) => {
+    setSelectedPoolForApplication(pool)
+    setLoanAmount(pool.minLoan.toString())
     setShowApplyModal(true)
   }
 
   const handleSubmitApplication = () => {
+    if (!selectedPoolForApplication) return
+    
     setShowApplyModal(false)
     setBorrowerStep("pending")
+    setSelectedPool(selectedPoolForApplication)
+    
     if (onNotificationAdd) {
       onNotificationAdd({
-        message: "Your $100 loan request has been submitted for review.",
+        message: `Your $${loanAmount} loan request to "${selectedPoolForApplication.name}" has been submitted for review.`,
         type: "info",
       })
     }
@@ -85,11 +97,12 @@ export default function BorrowerView() {
   }
 
   const handleConfirmPayment = () => {
+    const paymentAmount = (parseFloat(loanAmount) * 0.1).toFixed(2)
     setShowPaymentModal(false)
     setBorrowerStep("payment-made")
     if (onNotificationAdd) {
       onNotificationAdd({
-        message: "Your $10 payment was successful. Thank you!",
+        message: `Your $${paymentAmount} payment was successful. Thank you!`,
         type: "success",
       })
     }
@@ -144,12 +157,12 @@ export default function BorrowerView() {
         </Card>
       </div>
 
-      {/* My Loans Section */}
+      {/* Available Pools or My Loans Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2.5">
             <Bullet />
-            My Loans
+            {borrowerStep === "empty" || borrowerStep === "browsing" ? "Available Lending Pools" : "My Loans"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -161,11 +174,56 @@ export default function BorrowerView() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">You have no active loans.</p>
-                <p className="text-xs text-muted-foreground">Apply for a loan to get started</p>
+                <p className="text-xs text-muted-foreground">Browse available pools to get started</p>
               </div>
-              <Button size="lg" onClick={handleApplyClick}>
-                Apply for a New Loan
+              <Button size="lg" onClick={handleBrowsePoolsClick}>
+                Browse Lending Pools
               </Button>
+            </div>
+          ) : borrowerStep === "browsing" ? (
+            // Pool Selection State
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Select a pool that matches your needs. Each pool has different terms and interest rates.
+              </p>
+              {pools.map((pool) => (
+                <Card key={pool.id} className="border-2 hover:border-primary/50 transition-colors cursor-pointer" onClick={() => handleSelectPool(pool)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-display text-lg">{pool.name}</h3>
+                        <p className="text-sm text-muted-foreground">by {pool.lender}</p>
+                      </div>
+                      <Badge className="bg-primary text-primary-foreground">
+                        {pool.interestRate}% APR
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Available:</span>
+                        <div className="font-medium">${pool.liquidity.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Min Loan:</span>
+                        <div className="font-medium">${pool.minLoan}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Max Loan:</span>
+                        <div className="font-medium">${pool.maxLoan}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Max Term:</span>
+                        <div className="font-medium">{pool.maxTerm} days</div>
+                      </div>
+                    </div>
+                    
+                    <Button className="w-full mt-3" size="sm">
+                      Apply to This Pool
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           ) : borrowerStep === "pending" ? (
             // Pending State
@@ -234,29 +292,35 @@ export default function BorrowerView() {
       <Dialog open={showApplyModal} onOpenChange={setShowApplyModal}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Apply to the LendX Community Pool</DialogTitle>
-            <DialogDescription>Submit your loan request to the community lending pool</DialogDescription>
+            <DialogTitle>Apply to {selectedPoolForApplication?.name || "Pool"}</DialogTitle>
+            <DialogDescription>Submit your loan request to this lending pool</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {/* Pool Details */}
-            <div className="bg-accent rounded-lg p-4 space-y-2">
-              <h3 className="font-medium text-sm">Pool Details</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Available Liquidity:</span>
-                  <div className="font-medium">$1,000</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Interest Rate:</span>
-                  <div className="font-medium">~5.2%</div>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-muted-foreground">Max. Loan Term:</span>
-                  <div className="font-medium">6 Months</div>
+            {selectedPoolForApplication && (
+              <div className="bg-accent rounded-lg p-4 space-y-2">
+                <h3 className="font-medium text-sm">Pool Details</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Available Liquidity:</span>
+                    <div className="font-medium">${selectedPoolForApplication.liquidity.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Interest Rate:</span>
+                    <div className="font-medium">{selectedPoolForApplication.interestRate}% APR</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Loan Range:</span>
+                    <div className="font-medium">${selectedPoolForApplication.minLoan} - ${selectedPoolForApplication.maxLoan}</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Max Term:</span>
+                    <div className="font-medium">{selectedPoolForApplication.maxTerm} days</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Application Form */}
             <div className="space-y-4">
@@ -270,7 +334,14 @@ export default function BorrowerView() {
                   placeholder="100"
                   value={loanAmount}
                   onChange={(e) => setLoanAmount(e.target.value)}
+                  min={selectedPoolForApplication?.minLoan}
+                  max={selectedPoolForApplication?.maxLoan}
                 />
+                {selectedPoolForApplication && (
+                  <p className="text-xs text-muted-foreground">
+                    Min: ${selectedPoolForApplication.minLoan} | Max: ${selectedPoolForApplication.maxLoan}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
