@@ -2,7 +2,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-CLAUDE.md
 
 # C extensions
 *.so
@@ -410,3 +409,6 @@ temp/
 # Backup files
 *.bak
 *.backup
+doc/*
+.autonomous/*
+CLAUDE.md
