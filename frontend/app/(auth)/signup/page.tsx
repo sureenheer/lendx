@@ -15,32 +15,41 @@ export default function SignUpPage() {
   const [step1Complete, setStep1Complete] = useState(false)
   const [step2Complete, setStep2Complete] = useState(false)
   const [didStatus, setDidStatus] = useState("")
+  const [mockAddress, setMockAddress] = useState("")
   const [vcStatus, setVcStatus] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
 
   const handleStep1 = async () => {
+    // DEMO MODE: Skip wallet connection
     try {
       setIsConnecting(true)
-      await connectWallet()
-      generateDID()
+      
+      // Simulate connection delay
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Generate mock DID
+      const generatedAddress = `r${Math.random().toString(36).substring(2, 15).toUpperCase()}`
+      const mockDID = `did:xrpl:${generatedAddress}`
+      
+      setMockAddress(generatedAddress)
       setStep1Complete(true)
-      setDidStatus(did || `did:xrpl:${address}`)
+      setDidStatus(mockDID)
     } catch (error) {
       console.error("Wallet connection failed:", error)
-      // Handle error - show toast or alert
     } finally {
       setIsConnecting(false)
     }
   }
 
   const handleStep2 = async () => {
-    if (!did) return
-
+    // DEMO MODE: Skip credential verification
     try {
       setIsVerifying(true)
-      const credentialManager = CredentialManager.getInstance()
-      const credential = await credentialManager.issueVerifiedUserCredential(did)
+      
+      // Simulate verification delay
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
       setStep2Complete(true)
       setVcStatus(`Verified User Credential issued by LendX Trust Authority`)
     } catch (error) {
@@ -109,14 +118,14 @@ export default function SignUpPage() {
                   <span className="font-medium">Identity Created!</span>
                 </div>
               )}
-              {(didStatus || connected) && (
+              {didStatus && (
                 <div className="p-4 rounded-lg bg-muted/50 border border-border">
                   <p className="text-sm font-mono text-muted-foreground break-all">
-                    {didStatus || (address ? `did:xrpl:${address}` : "Generating DID...")}
+                    {didStatus}
                   </p>
-                  {address && (
+                  {mockAddress && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      Wallet: {address}
+                      Wallet: {mockAddress}
                     </p>
                   )}
                 </div>

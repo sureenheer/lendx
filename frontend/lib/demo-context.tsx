@@ -141,26 +141,44 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setNotifications([])
   }, [])
 
-  // Add pool
+  // Add pool with notification
   const addPool = useCallback((pool: Pool) => {
     setPools((prev) => [...prev, pool])
-  }, [])
+    
+    // Notify about new pool creation
+    onNotificationAdd({
+      message: `New lending pool "${pool.name}" created with $${pool.liquidity} at ${pool.interestRate}% APR`,
+      type: "success",
+    })
+  }, [onNotificationAdd])
 
   // Auto-sync flows: when borrower applies, notify lender
   useEffect(() => {
     if (borrowerStep === 'pending' && lenderStep === 'pool-created') {
       // Borrower just applied, show loan request to lender
       setLenderStep('loan-request')
+      
+      // Notify about new loan request
+      onNotificationAdd({
+        message: "New loan request received from borrower!",
+        type: "info",
+      })
     }
-  }, [borrowerStep, lenderStep])
+  }, [borrowerStep, lenderStep, onNotificationAdd])
 
   // Auto-sync flows: when lender approves, notify borrower
   useEffect(() => {
     if (lenderStep === 'loan-approved' && borrowerStep === 'pending') {
       // Lender just approved, update borrower
       setBorrowerStep('approved')
+      
+      // Notify borrower about approval
+      onNotificationAdd({
+        message: "Your loan has been approved by the lender!",
+        type: "success",
+      })
     }
-  }, [lenderStep, borrowerStep])
+  }, [lenderStep, borrowerStep, onNotificationAdd])
 
   // Handle next action in demo flow
   const handleNextAction = useCallback(() => {

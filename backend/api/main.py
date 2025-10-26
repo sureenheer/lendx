@@ -60,8 +60,10 @@ app.add_middleware(
 
 # Import and register routers
 from .auth import router as auth_router
+from .xumm import router as xumm_router
 
 app.include_router(auth_router)
+app.include_router(xumm_router)
 
 # Initialize database on startup
 @app.on_event("startup")

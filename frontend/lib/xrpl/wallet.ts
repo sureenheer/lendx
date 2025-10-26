@@ -29,65 +29,73 @@ const RLUSD_ISSUER = process.env.NEXT_PUBLIC_RLUSD_ISSUER || 'rN7n7otQDd6FczFgLd
 const RLUSD_CURRENCY = 'RLUSD'
 
 /**
- * Connect wallet using Xumm mobile app
+ * Connect wallet using Xumm mobile app via backend proxy
  * Creates a sign-in payload and waits for user approval
  */
 export async function connectWallet(): Promise<WalletState> {
   try {
-    const sdk = getXummSdk()
-    // Create Xumm sign-in payload
-    const request = await sdk.payload.create({
-      TransactionType: 'SignIn'
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    
+    // Create sign-in payload via backend
+    const createResponse = await fetch(`${apiUrl}/api/xumm/signin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
 
-    if (!request) {
+    if (!createResponse.ok) {
       throw new Error('Failed to create Xumm payload')
     }
 
-    const payload = request as unknown as XummPayloadResponse
+    const { payload } = await createResponse.json()
 
     // Open QR code in new window or show to user
-    // In production, display payload.refs.qr_png to user
-    console.log('Xumm Sign-In QR:', payload.refs.qr_png)
-    console.log('Xumm Sign-In URL:', payload.next.always)
+    console.log('Xumm Sign-In QR:', payload.qr_url)
+    console.log('Xumm Sign-In URL:', payload.deeplink)
 
     // Open the sign-in URL (will redirect to Xumm app if on mobile)
     if (typeof window !== 'undefined') {
-      window.open(payload.next.always, '_blank')
+      window.open(payload.deeplink, '_blank')
     }
 
-    // Wait for user to approve
-    const result = await sdk.payload.subscribe(payload.uuid, (event: any) => {
-      if (event.data && event.data.signed !== null) {
-        return event.data
+    // Poll for payload status
+    const maxAttempts = 60 // 60 seconds timeout
+    let attempts = 0
+    
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+      
+      const statusResponse = await fetch(`${apiUrl}/api/xumm/payload/${payload.uuid}`)
+      if (!statusResponse.ok) {
+        throw new Error('Failed to check payload status')
       }
-    })
-
-    if (!result || !(result as any).signed) {
-      throw new Error('Sign-in cancelled or failed')
-    }
-
-    const signResult = result as unknown as XummSignResult
-
-    // Get wallet address from sign result
-    const address = signResult.account || null
-
-    if (!address) {
-      throw new Error('Failed to get wallet address')
-    }
-
-    // Get wallet balance
-    const balance = await getWalletBalance(address)
-
-    return {
-      connected: true,
-      address,
-      publicKey: null, // Can be retrieved if needed
-      balance: {
-        xrp: balance.xrp,
-        rlusd: balance.rlusd
+      
+      const { status } = await statusResponse.json()
+      
+      if (status.signed && status.account) {
+        // Get wallet balance
+        const balance = await getWalletBalance(status.account)
+        
+        return {
+          connected: true,
+          address: status.account,
+          publicKey: null,
+          balance: {
+            xrp: balance.xrp,
+            rlusd: balance.rlusd
+          }
+        }
       }
+      
+      if (status.cancelled || status.expired) {
+        throw new Error('Sign-in cancelled or expired')
+      }
+      
+      attempts++
     }
+    
+    throw new Error('Sign-in timeout')
   } catch (error) {
     console.error('Failed to connect wallet:', error)
     throw error
@@ -106,47 +114,63 @@ export function disconnectWallet(): void {
 }
 
 /**
- * Sign transaction using Xumm
+ * Sign transaction using Xumm via backend proxy
  * Creates a payload with the transaction and waits for user signature
  */
 export async function signTransaction(txJson: any): Promise<string> {
   try {
-    const sdk = getXummSdk()
-    // Create Xumm payload with transaction
-    const request = await sdk.payload.create({
-      txjson: txJson
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    
+    // Create transaction payload via backend
+    const createResponse = await fetch(`${apiUrl}/api/xumm/transaction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ tx_json: txJson })
     })
 
-    if (!request) {
+    if (!createResponse.ok) {
       throw new Error('Failed to create Xumm payload')
     }
 
-    const payload = request as unknown as XummPayloadResponse
+    const { payload } = await createResponse.json()
 
     // Show QR code or deep link to user
-    console.log('Xumm Transaction QR:', payload.refs.qr_png)
-    console.log('Xumm Transaction URL:', payload.next.always)
+    console.log('Xumm Transaction QR:', payload.qr_url)
+    console.log('Xumm Transaction URL:', payload.deeplink)
 
     // Open the signing URL
     if (typeof window !== 'undefined') {
-      window.open(payload.next.always, '_blank')
+      window.open(payload.deeplink, '_blank')
     }
 
-    // Wait for signature
-    const result = await sdk.payload.subscribe(payload.uuid, (event: any) => {
-      if (event.data && event.data.signed !== null) {
-        return event.data
+    // Poll for payload status
+    const maxAttempts = 60 // 60 seconds timeout
+    let attempts = 0
+    
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+      
+      const statusResponse = await fetch(`${apiUrl}/api/xumm/payload/${payload.uuid}`)
+      if (!statusResponse.ok) {
+        throw new Error('Failed to check payload status')
       }
-    })
-
-    if (!result || !(result as any).signed) {
-      throw new Error('Transaction cancelled or failed')
+      
+      const { status } = await statusResponse.json()
+      
+      if (status.signed && status.txid) {
+        return status.txid
+      }
+      
+      if (status.cancelled || status.expired) {
+        throw new Error('Transaction cancelled or expired')
+      }
+      
+      attempts++
     }
-
-    const signResult = result as unknown as XummSignResult
-
-    // Return transaction ID
-    return signResult.txid || ''
+    
+    throw new Error('Transaction timeout')
   } catch (error) {
     console.error('Failed to sign transaction:', error)
     throw error

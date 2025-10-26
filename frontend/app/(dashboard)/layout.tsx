@@ -1,3 +1,5 @@
+"use client"
+
 import type React from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { MobileHeader } from "@/components/dashboard/mobile-header"
@@ -5,10 +7,10 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import mockDataJson from "@/mock.json"
 import type { MockData } from "@/types/dashboard"
 import Widget from "@/components/dashboard/widget"
-import Notifications from "@/components/dashboard/notifications"
 import { MobileChat } from "@/components/chat/mobile-chat"
 import Chat from "@/components/chat"
 import { DemoProvider } from "@/lib/demo-context"
+import DemoNotifications from "@/components/dashboard/demo-notifications"
 
 const mockData = mockDataJson as MockData
 
@@ -32,7 +34,7 @@ export default function DashboardLayout({
           <div className="col-span-3 hidden lg:block relative">
             <div className="space-y-gap py-sides min-h-screen max-h-screen sticky top-0 overflow-clip">
               <Widget widgetData={mockData.widgetData} />
-              <Notifications initialNotifications={[]} />
+              <DemoNotifications />
               <Chat />
             </div>
           </div>

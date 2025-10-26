@@ -91,35 +91,22 @@ export default function LenderView() {
   }
 
   const handleConfirmCreatePool = async () => {
-    if (!connected || !address) {
-      if (onNotificationAdd) {
-        onNotificationAdd({
-          message: "Please connect your wallet first",
-          type: "warning",
-        })
-      }
-      return
-    }
-
+    // DEMO MODE: No wallet required
     try {
       setIsCreatingPool(true)
 
-      // Create lending pool transaction data
-      const poolData: LendingPoolTransaction = {
-        amount: (parseFloat(poolAmount) * 1_000_000).toString(), // Convert to drops
-        poolId: `pool_${Date.now()}`, // Generate unique pool ID
-        lender: address,
-      }
+      // Simulate transaction delay
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
-      // Create the lending pool on XRPL
-      const txHash = await createLendingPool(poolData)
+      // Generate mock transaction hash
+      const mockTxHash = `0x${Math.random().toString(16).substring(2, 66)}`
 
       setShowCreatePoolModal(false)
       setLenderStep("pool-created")
 
       if (onNotificationAdd) {
         onNotificationAdd({
-          message: `You have successfully created "${poolName}" with $${poolAmount}. Transaction: ${txHash}`,
+          message: `You have successfully created "${poolName}" with $${poolAmount}. Transaction: ${mockTxHash}`,
           type: "success",
         })
       }
@@ -151,35 +138,21 @@ export default function LenderView() {
   }
 
   const handleApprove = async () => {
-    if (!connected || !address) {
-      if (onNotificationAdd) {
-        onNotificationAdd({
-          message: "Please connect your wallet first",
-          type: "warning",
-        })
-      }
-      return
-    }
-
+    // DEMO MODE: No wallet required
     try {
       setIsApprovingLoan(true)
 
-      // Create direct loan transaction
-      const loanData: LoanTransaction = {
-        amount: "100000000", // $100 in drops
-        borrower: "rAmara...", // This would be the actual borrower address
-        lender: address,
-        interestRate: parseFloat(poolRate),
-        termDays: parseInt(maxLoanTerm),
-      }
+      // Simulate transaction delay
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
-      // Create direct loan payment to borrower
-      const txHash = await createDirectLoan(loanData)
+      // Generate mock transaction hash
+      const mockTxHash = `0x${Math.random().toString(16).substring(2, 66)}`
 
       setLenderStep("loan-approved")
+
       if (onNotificationAdd) {
         onNotificationAdd({
-          message: `You have approved a $100 loan to Amara K. Transaction: ${txHash}`,
+          message: `You have approved the $100 loan to Amara K. Transaction: ${mockTxHash}`,
           type: "success",
         })
       }
