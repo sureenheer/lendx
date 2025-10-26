@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @wrap_xrpl_exception
-def create_issuance(client: JsonRpcClient, issuer_wallet: Wallet, ticker: str, name: str) -> str:
+def create_issuance(client: JsonRpcClient, issuer_wallet: Wallet, ticker: str, name: str) -> Dict[str, str]:
     """
     Create an MPT issuance with non-transferable flags.
 
@@ -32,7 +32,7 @@ def create_issuance(client: JsonRpcClient, issuer_wallet: Wallet, ticker: str, n
         name: Token display name
 
     Returns:
-        Issuance ID from transaction metadata
+        Dictionary with 'mpt_id' and 'tx_hash'
 
     Raises:
         XRPLClientError: If issuance creation fails
@@ -53,15 +53,19 @@ def create_issuance(client: JsonRpcClient, issuer_wallet: Wallet, ticker: str, n
         )
 
         response = submit_and_wait(client, tx.to_dict(), issuer_wallet)
+        
+        # Get transaction hash
+        tx_hash = response.get('hash', '')
 
         # Extract issuance_id from metadata
+        issuance_id = None
         if 'meta' in response and 'CreatedNode' in response['meta']:
             for created_node in response['meta']['CreatedNode']:
                 if created_node.get('LedgerEntryType') == 'MPToken':
                     issuance_id = created_node.get('NewFields', {}).get('MPTokenID')
                     if issuance_id:
-                        logger.info(f"Created MPT issuance: {issuance_id}")
-                        return issuance_id
+                        logger.info(f"Created MPT issuance: {issuance_id}, tx: {tx_hash}")
+                        return {"mpt_id": issuance_id, "tx_hash": tx_hash}
 
         # Fallback: try to find in AffectedNodes
         for node in response.get('meta', {}).get('AffectedNodes', []):
@@ -70,8 +74,8 @@ def create_issuance(client: JsonRpcClient, issuer_wallet: Wallet, ticker: str, n
                 if created.get('LedgerEntryType') == 'MPToken':
                     issuance_id = created.get('NewFields', {}).get('MPTokenID')
                     if issuance_id:
-                        logger.info(f"Created MPT issuance: {issuance_id}")
-                        return issuance_id
+                        logger.info(f"Created MPT issuance: {issuance_id}, tx: {tx_hash}")
+                        return {"mpt_id": issuance_id, "tx_hash": tx_hash}
 
         raise XRPLClientError("Failed to extract issuance_id from transaction metadata")
 

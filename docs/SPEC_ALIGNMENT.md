@@ -1,7 +1,8 @@
 # LendX Product Specification Alignment Analysis
 
 **Date**: 2025-10-26 (Updated)
-**Status**: 🟡 IN PROGRESS - Database foundation complete, MPT integration pending
+**Status**: 🟡 IN PROGRESS - Building MVP for local demo
+**Target**: **MVP demo on localhost (not production ready)**
 
 ---
 
@@ -1389,53 +1390,70 @@ This gives full on-chain audit trail while using database for query efficiency.
 
 ---
 
-## 12. NEXT IMMEDIATE STEPS
+## 12. MVP ROADMAP (LOCAL DEMO)
 
-Based on the completed database work, here are the recommended next steps:
+**Goal**: Demonstrate end-to-end lending with MPTs on XRPL testnet (localhost only)
 
-### Week 2: Complete Phase 1 Foundation
+### MVP Scope
 
-**Priority 1: API Integration with Database**
-1. Update `backend/api/main.py` to use database ORM instead of in-memory dicts
-2. Replace `lending_pools`, `loan_applications`, `active_loans` dicts with database queries
-3. Add database session dependency to FastAPI routes
-4. Test all existing endpoints with database backend
+**MUST HAVE** (for demo):
+- ✅ Database with pools/applications/loans
+- ✅ MPT schemas (PoolMPT, ApplicationMPT, LoanMPT)
+- ✅ DID service
+- 🔄 Create pool → PoolMPT on XRPL testnet
+- 🔄 Apply for loan → ApplicationMPT on XRPL testnet
+- 🔄 Approve loan → LoanMPT on XRPL testnet
+- 🔄 Wallet connection (Xumm or direct)
+- 🔄 View all transactions in XRPL explorer
 
-**Priority 2: Frontend Library Setup**
-1. Create `/frontend/lib/xrpl/` directory structure
-2. Implement wallet connection using Xumm SDK
-3. Create React hooks for XRPL state management
-4. Add API client wrapper for backend communication
+**SKIP FOR MVP**:
+- ❌ Row-Level Security (use dev mode)
+- ❌ JWT authentication (open endpoints)
+- ❌ RLUSD integration (use XRP for demo)
+- ❌ DefaultMPT / credit scoring
+- ❌ Payment tracking
+- ❌ Production deployment
 
-**Priority 3: RLUSD Integration**
-1. Implement trust line setup in `backend/xrpl_client/`
-2. Add RLUSD transfer functions
-3. Update balance queries to support RLUSD
-4. Add RLUSD configuration to environment variables
+### Immediate Tasks (This Week)
 
-### Week 3-4: Begin Phase 2 (MPT Core)
+**Day 1-2: Backend Integration**
+1. Wire database to API endpoints
+2. Connect `POST /pool` → `create_pool_mpt()`
+3. Connect `POST /application` → `create_application_mpt()`
+4. Connect `PUT /application/approve` → `create_loan_mpt()`
 
-Once Phase 1 is complete:
-1. Create `backend/models/mpt_schemas.py` with Pydantic MPT metadata models
-2. Create `backend/services/mpt_service.py` for MPT CRUD operations
-3. Update POST /api/pool to create PoolMPT on-chain
-4. Update POST /api/application to create ApplicationMPT on-chain
-5. Implement loan approval flow with LoanMPT creation
+**Day 1-2: Frontend Integration** (parallel)
+1. Create `frontend/lib/xrpl/` wallet layer
+2. Add Xumm SDK integration
+3. Wire lender-view.tsx to backend
+4. Wire borrower-view.tsx to backend
 
-### Documentation & Security
+**Day 3: Testing**
+1. Get testnet XRP from faucet
+2. Create test wallets
+3. Run complete demo flow
+4. Verify MPTs in XRPL explorer
 
-**Before Production**:
-- [ ] Enable RLS on all tables (see `backend/SECURITY.md`)
-- [ ] Create and test RLS policies
-- [ ] Implement JWT authentication
-- [ ] Rotate all API keys
-- [ ] Set up monitoring and alerts
+### Demo Script
 
-**Development Notes**:
-- Database is production-ready but RLS is disabled for easier development
-- All tests passing (27 tests)
-- Connection pooling configured for scale
-- Ready to integrate with existing API endpoints
+```
+1. Start backend: uvicorn backend.api.main:app --reload
+2. Start frontend: cd frontend && npm run dev
+3. Lender: Create pool (verify PoolMPT in explorer)
+4. Borrower: Apply for loan (verify ApplicationMPT in explorer)
+5. Lender: Approve application (verify LoanMPT in explorer)
+6. Show: All 3 MPTs visible at testnet.xrpl.org
+```
+
+### Resources Created
+
+- **State tracking**: `.autonomous/state.json`
+- **Developer docs**: `.autonomous/RESOURCES.md`
+  - XRPL MPT docs
+  - DID implementation guides
+  - FastAPI tutorials
+  - Testnet faucet links
+  - Wallet integration examples
 
 ---
 

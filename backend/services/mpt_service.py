@@ -71,17 +71,18 @@ def create_pool_mpt(
         name = f"LendX Pool {metadata.total_balance}XRP @{metadata.interest_rate}%"
 
         # Create MPT issuance with metadata
-        mpt_id = create_issuance(
+        result = create_issuance(
             client=client,
             issuer_wallet=issuer_wallet,
             ticker=ticker,
             name=name
         )
 
-        logger.info(f"Created PoolMPT {mpt_id} for issuer {issuer_wallet.classic_address}")
+        logger.info(f"Created PoolMPT {result['mpt_id']} for issuer {issuer_wallet.classic_address}")
 
         return {
-            "mpt_id": mpt_id,
+            "mpt_id": result['mpt_id'],
+            "tx_hash": result['tx_hash'],
             "metadata": metadata.to_json_dict()
         }
 
@@ -125,17 +126,18 @@ def create_application_mpt(
         name = f"LendX Application {metadata.principal}XRP"
 
         # Create MPT issuance
-        mpt_id = create_issuance(
+        result = create_issuance(
             client=client,
             issuer_wallet=borrower_wallet,
             ticker=ticker,
             name=name
         )
 
-        logger.info(f"Created ApplicationMPT {mpt_id} for borrower {borrower_wallet.classic_address}")
+        logger.info(f"Created ApplicationMPT {result['mpt_id']} for borrower {borrower_wallet.classic_address}")
 
         return {
-            "mpt_id": mpt_id,
+            "mpt_id": result['mpt_id'],
+            "tx_hash": result['tx_hash'],
             "metadata": metadata.to_json_dict()
         }
 
@@ -179,17 +181,18 @@ def create_loan_mpt(
         name = f"LendX Loan {metadata.principal}XRP"
 
         # Create MPT issuance
-        mpt_id = create_issuance(
+        result = create_issuance(
             client=client,
             issuer_wallet=lender_wallet,
             ticker=ticker,
             name=name
         )
 
-        logger.info(f"Created LoanMPT {mpt_id} for lender {lender_wallet.classic_address}")
+        logger.info(f"Created LoanMPT {result['mpt_id']} for lender {lender_wallet.classic_address}")
 
         return {
-            "mpt_id": mpt_id,
+            "mpt_id": result['mpt_id'],
+            "tx_hash": result['tx_hash'],
             "metadata": metadata.to_json_dict()
         }
 

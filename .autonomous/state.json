@@ -1,0 +1,1076 @@
+{
+  "project": "LendX MVP",
+  "status": "BUILDING",
+  "target": "Local demo on localhost (XRPL testnet)",
+  "updated": "2025-10-26",
+  "overall_progress": "45%",
+
+  "workstreams": {
+    "total": 10,
+    "active": 10,
+    "completed": 0
+  },
+
+  "agents": {
+    "backend-engineer-1": {
+      "id": "be-1",
+      "status": "READY",
+      "assigned": "API-Database Integration: Pools",
+      "priority": "HIGH",
+      "estimated_hours": 4,
+
+      "task": {
+        "title": "Connect Pool Endpoints to Database",
+        "description": "Replace in-memory dictionary storage with PostgreSQL database queries for lending pool operations",
+
+        "files_to_modify": [
+          {
+            "path": "backend/api/main.py",
+            "functions": ["create_pool", "get_pools", "get_pool_by_id"],
+            "current_line_range": "45-120",
+            "changes": "Replace lending_pools dict with database ORM queries"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Add database import at top of backend/api/main.py",
+            "code": "from backend.config.database import get_db_session\nfrom backend.models.database import Pool, User\nfrom sqlalchemy.orm import Session",
+            "line": "After line 10 (after other imports)"
+          },
+          {
+            "step": 2,
+            "action": "Create FastAPI dependency for database session",
+            "code": "def get_db():\n    \"\"\"Database session dependency\"\"\"\n    db = get_db_session()\n    try:\n        yield db\n    finally:\n        db.close()",
+            "line": "After app initialization (around line 30)"
+          },
+          {
+            "step": 3,
+            "action": "Modify POST /pools endpoint",
+            "old_code": "lending_pools[pool_id] = pool_data",
+            "new_code": "db_pool = Pool(\n    pool_address=pool_id,\n    issuer_address=pool_data['issuer_address'],\n    total_balance=pool_data['amount'],\n    current_balance=pool_data['amount'],\n    minimum_loan=pool_data.get('min_loan', 0),\n    duration_days=pool_data.get('duration', 30),\n    interest_rate=pool_data['interest_rate']\n)\ndb.add(db_pool)\ndb.commit()\ndb.refresh(db_pool)",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 4,
+            "action": "Modify GET /pools endpoint",
+            "old_code": "return list(lending_pools.values())",
+            "new_code": "pools = db.query(Pool).all()\nreturn [pool.to_dict() for pool in pools]",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 5,
+            "action": "Modify GET /pools/{pool_id} endpoint",
+            "old_code": "if pool_id not in lending_pools:\n    raise HTTPException(404)\nreturn lending_pools[pool_id]",
+            "new_code": "pool = db.query(Pool).filter(Pool.pool_address == pool_id).first()\nif not pool:\n    raise HTTPException(status_code=404, detail='Pool not found')\nreturn pool.to_dict()",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 6,
+            "action": "Remove in-memory dictionary",
+            "old_code": "lending_pools: Dict[str, dict] = {}",
+            "new_code": "# Removed - using database",
+            "line": "Delete this line completely"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "POST /pools creates record in database",
+          "GET /pools returns all pools from database",
+          "GET /pools/{id} returns specific pool from database",
+          "No references to lending_pools dict remain",
+          "All endpoints return correct JSON structure"
+        ],
+
+        "testing": {
+          "manual_test": "curl -X POST http://localhost:8000/api/pools -H 'Content-Type: application/json' -d '{\"issuer_address\":\"rTest123\",\"amount\":1000,\"interest_rate\":5}'",
+          "expected": "Returns pool object with pool_address field",
+          "verify_db": "SELECT * FROM pools; -- Should show new record"
+        },
+
+        "documentation": [
+          {
+            "topic": "FastAPI Database Integration",
+            "url": "https://fastapi.tiangolo.com/tutorial/sql-databases/",
+            "section": "Create a dependency"
+          },
+          {
+            "topic": "SQLAlchemy ORM Tutorial",
+            "url": "https://docs.sqlalchemy.org/en/20/orm/quickstart.html",
+            "section": "Querying"
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": []
+      }
+    },
+
+    "backend-engineer-2": {
+      "id": "be-2",
+      "status": "READY",
+      "assigned": "API-Database Integration: Applications & Loans",
+      "priority": "HIGH",
+      "estimated_hours": 4,
+
+      "task": {
+        "title": "Connect Application & Loan Endpoints to Database",
+        "description": "Replace in-memory dictionaries with PostgreSQL for loan applications and active loans",
+
+        "files_to_modify": [
+          {
+            "path": "backend/api/main.py",
+            "functions": ["create_application", "get_applications", "approve_loan", "get_loans"],
+            "current_line_range": "120-250",
+            "changes": "Replace loan_applications and active_loans dicts with database ORM"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Add model imports",
+            "code": "from backend.models.database import Application, Loan",
+            "line": "Add to imports section (top of file)"
+          },
+          {
+            "step": 2,
+            "action": "Modify POST /applications endpoint",
+            "old_code": "loan_applications[app_id] = application_data",
+            "new_code": "db_app = Application(\n    application_address=app_id,\n    borrower_address=application_data['borrower_address'],\n    pool_address=application_data['pool_address'],\n    principal=application_data['principal'],\n    interest=application_data.get('interest', 0),\n    state='PENDING',\n    application_date=datetime.now()\n)\ndb.add(db_app)\ndb.commit()\ndb.refresh(db_app)",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 3,
+            "action": "Modify GET /applications endpoint",
+            "old_code": "return list(loan_applications.values())",
+            "new_code": "applications = db.query(Application).all()\nreturn [app.to_dict() for app in applications]",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 4,
+            "action": "Modify PUT /applications/{id}/approve endpoint",
+            "old_code": "loan_applications[app_id]['status'] = 'approved'\nactive_loans[loan_id] = loan_data",
+            "new_code": "# Update application\napp = db.query(Application).filter(Application.application_address == app_id).first()\nif not app:\n    raise HTTPException(404, 'Application not found')\napp.state = 'APPROVED'\n\n# Create loan\nloan = Loan(\n    loan_address=loan_id,\n    pool_address=app.pool_address,\n    borrower_address=app.borrower_address,\n    lender_address=lender_address,\n    principal=app.principal,\n    interest=app.interest,\n    state='ONGOING',\n    start_date=datetime.now(),\n    end_date=datetime.now() + timedelta(days=30)\n)\ndb.add(loan)\ndb.commit()",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 5,
+            "action": "Modify GET /loans endpoint",
+            "old_code": "return list(active_loans.values())",
+            "new_code": "loans = db.query(Loan).all()\nreturn [loan.to_dict() for loan in loans]",
+            "add_param": "db: Session = Depends(get_db)"
+          },
+          {
+            "step": 6,
+            "action": "Remove in-memory dictionaries",
+            "old_code": "loan_applications: Dict[str, dict] = {}\nactive_loans: Dict[str, dict] = {}",
+            "new_code": "# Removed - using database",
+            "line": "Delete both lines"
+          },
+          {
+            "step": 7,
+            "action": "Add datetime import",
+            "code": "from datetime import datetime, timedelta",
+            "line": "Add to imports section"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "POST /applications creates Application record in DB",
+          "GET /applications returns all applications from DB",
+          "PUT /applications/{id}/approve creates Loan record",
+          "Application state updates to 'APPROVED' in DB",
+          "No references to loan_applications or active_loans dicts"
+        ],
+
+        "testing": {
+          "manual_test": "curl -X POST http://localhost:8000/api/applications -d '{\"borrower_address\":\"rBorrow1\",\"pool_address\":\"pool123\",\"principal\":500}'",
+          "expected": "Creates application with state='PENDING'",
+          "verify_db": "SELECT * FROM applications; SELECT * FROM loans;"
+        },
+
+        "documentation": [
+          {
+            "topic": "SQLAlchemy Relationships",
+            "url": "https://docs.sqlalchemy.org/en/20/orm/basic_relationships.html",
+            "section": "One to Many"
+          },
+          {
+            "topic": "FastAPI Request Body",
+            "url": "https://fastapi.tiangolo.com/tutorial/body/",
+            "section": "Request body + path parameters"
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": []
+      }
+    },
+
+    "backend-engineer-3": {
+      "id": "be-3",
+      "status": "READY",
+      "assigned": "MPT Integration: Pool Creation",
+      "priority": "HIGH",
+      "estimated_hours": 3,
+
+      "task": {
+        "title": "Integrate PoolMPT Creation into Pool Endpoint",
+        "description": "When a pool is created via POST /pools, create a PoolMPT on XRPL and store the MPT ID in database",
+
+        "files_to_modify": [
+          {
+            "path": "backend/api/main.py",
+            "functions": ["create_pool"],
+            "changes": "Add MPT creation call before database insert"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Add MPT service imports",
+            "code": "from backend.services.mpt_service import create_pool_mpt\nfrom backend.models.mpt_schemas import PoolMPTMetadata\nfrom backend.xrpl_client.client import connect\nfrom xrpl.wallet import Wallet",
+            "line": "Add to imports section (top of file)"
+          },
+          {
+            "step": 2,
+            "action": "Initialize XRPL client as global",
+            "code": "# XRPL client for testnet\nxrpl_client = connect('testnet')",
+            "line": "After app initialization, around line 35"
+          },
+          {
+            "step": 3,
+            "action": "Modify POST /pools endpoint to create MPT",
+            "location": "Inside create_pool function, BEFORE database insert",
+            "new_code": "# Create PoolMPT on XRPL\ntry:\n    # For demo: generate a wallet (in production, use user's wallet)\n    lender_wallet = Wallet.create()\n    \n    # Create MPT metadata\n    pool_metadata = PoolMPTMetadata(\n        issuerAddr=lender_wallet.address,\n        totalBalance=float(pool_data['amount']),\n        currentBalance=float(pool_data['amount']),\n        minimumLoan=float(pool_data.get('min_loan', 0)),\n        duration=int(pool_data.get('duration', 30)),\n        interestRate=float(pool_data['interest_rate'])\n    )\n    \n    # Create MPT on XRPL\n    mpt_result = create_pool_mpt(\n        client=xrpl_client,\n        issuer_wallet=lender_wallet,\n        metadata=pool_metadata\n    )\n    \n    # Use MPT ID as pool_address\n    pool_id = mpt_result['mpt_id']\n    tx_hash = mpt_result['tx_hash']\n    \nexcept Exception as e:\n    raise HTTPException(status_code=500, detail=f'Failed to create PoolMPT: {str(e)}')",
+            "insert_after": "Function signature line"
+          },
+          {
+            "step": 4,
+            "action": "Update database insert to include tx_hash",
+            "old_code": "db_pool = Pool(\n    pool_address=pool_id,\n    ...\n)",
+            "new_code": "db_pool = Pool(\n    pool_address=pool_id,  # MPT ID from XRPL\n    issuer_address=lender_wallet.address,\n    total_balance=pool_data['amount'],\n    current_balance=pool_data['amount'],\n    minimum_loan=pool_data.get('min_loan', 0),\n    duration_days=pool_data.get('duration', 30),\n    interest_rate=pool_data['interest_rate'],\n    tx_hash=tx_hash  # XRPL transaction hash\n)"
+          },
+          {
+            "step": 5,
+            "action": "Add response field for XRPL verification",
+            "old_code": "return {\"pool_id\": pool_id}",
+            "new_code": "return {\n    \"pool_id\": pool_id,\n    \"pool_address\": pool_id,  # MPT ID\n    \"tx_hash\": tx_hash,\n    \"explorer_url\": f\"https://testnet.xrpl.org/transactions/{tx_hash}\",\n    \"message\": \"Pool created on XRPL. Verify at explorer_url\"\n}"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "POST /pools creates PoolMPT on XRPL testnet",
+          "Returns MPT ID as pool_address",
+          "Returns tx_hash for verification",
+          "Database stores tx_hash field",
+          "Can verify transaction at testnet.xrpl.org"
+        ],
+
+        "testing": {
+          "manual_test": "curl -X POST http://localhost:8000/api/pools -H 'Content-Type: application/json' -d '{\"amount\":1000,\"interest_rate\":5,\"min_loan\":100,\"duration\":30}'",
+          "expected": "Returns pool_id (MPT ID) and tx_hash",
+          "verify_xrpl": "Visit returned explorer_url, should show MPTCreate transaction",
+          "verify_db": "SELECT pool_address, tx_hash FROM pools; -- Should have XRPL data"
+        },
+
+        "documentation": [
+          {
+            "topic": "XRPL MPT Creation",
+            "url": "https://xrpl.org/docs/concepts/tokens/fungible-tokens/multi-purpose-tokens",
+            "section": "Creating MPTs"
+          },
+          {
+            "topic": "XRPL Testnet Explorer",
+            "url": "https://testnet.xrpl.org/",
+            "section": "Search by transaction hash"
+          },
+          {
+            "topic": "Our MPT Service Code",
+            "file": "backend/services/mpt_service.py",
+            "function": "create_pool_mpt()"
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": [],
+
+        "demo_notes": "This creates the first on-chain artifact! After this task, pools will be visible on XRPL explorer."
+      }
+    },
+
+    "backend-engineer-4": {
+      "id": "be-4",
+      "status": "READY",
+      "assigned": "MPT Integration: Application & Loan Creation",
+      "priority": "HIGH",
+      "estimated_hours": 4,
+
+      "task": {
+        "title": "Integrate ApplicationMPT and LoanMPT Creation",
+        "description": "Create ApplicationMPT when borrower applies, create LoanMPT when lender approves",
+
+        "files_to_modify": [
+          {
+            "path": "backend/api/main.py",
+            "functions": ["create_application", "approve_application"],
+            "changes": "Add MPT creation for both application and loan flows"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Add ApplicationMPT imports",
+            "code": "from backend.services.mpt_service import create_application_mpt, create_loan_mpt\nfrom backend.models.mpt_schemas import ApplicationMPTMetadata, LoanMPTMetadata",
+            "line": "Add to imports section"
+          },
+          {
+            "step": 2,
+            "action": "Modify POST /applications to create ApplicationMPT",
+            "location": "Inside create_application function",
+            "new_code": "# Create ApplicationMPT on XRPL\ntry:\n    # Generate borrower wallet (demo)\n    borrower_wallet = Wallet.create()\n    \n    # Get pool to calculate interest\n    pool = db.query(Pool).filter(Pool.pool_address == application_data['pool_address']).first()\n    if not pool:\n        raise HTTPException(404, 'Pool not found')\n    \n    # Calculate interest\n    principal = float(application_data['principal'])\n    interest = principal * (pool.interest_rate / 100)\n    \n    # Create metadata\n    app_metadata = ApplicationMPTMetadata(\n        borrowerAddr=borrower_wallet.address,\n        poolAddr=pool.pool_address,\n        principal=principal,\n        interest=interest,\n        state='PENDING'\n    )\n    \n    # Create MPT\n    mpt_result = create_application_mpt(\n        client=xrpl_client,\n        borrower_wallet=borrower_wallet,\n        metadata=app_metadata\n    )\n    \n    app_id = mpt_result['mpt_id']\n    tx_hash = mpt_result['tx_hash']\n    \nexcept Exception as e:\n    raise HTTPException(500, f'Failed to create ApplicationMPT: {str(e)}')",
+            "insert_after": "Function signature"
+          },
+          {
+            "step": 3,
+            "action": "Update Application database insert",
+            "new_code": "db_app = Application(\n    application_address=app_id,  # MPT ID\n    borrower_address=borrower_wallet.address,\n    pool_address=pool.pool_address,\n    principal=principal,\n    interest=interest,\n    state='PENDING',\n    application_date=datetime.now(),\n    dissolution_date=datetime.now() + timedelta(days=30),\n    tx_hash=tx_hash\n)"
+          },
+          {
+            "step": 4,
+            "action": "Update application response",
+            "new_code": "return {\n    \"application_id\": app_id,\n    \"tx_hash\": tx_hash,\n    \"explorer_url\": f\"https://testnet.xrpl.org/transactions/{tx_hash}\",\n    \"message\": \"Application submitted on XRPL\"\n}"
+          },
+          {
+            "step": 5,
+            "action": "Modify PUT /applications/{id}/approve to create LoanMPT",
+            "location": "Inside approve_application function",
+            "new_code": "# Get application from database\napp = db.query(Application).filter(Application.application_address == app_id).first()\nif not app:\n    raise HTTPException(404, 'Application not found')\n\nif app.state != 'PENDING':\n    raise HTTPException(400, 'Application not in PENDING state')\n\n# Get pool for lender address\npool = db.query(Pool).filter(Pool.pool_address == app.pool_address).first()\n\n# Create lender wallet (demo)\nlender_wallet = Wallet.create()\n\ntry:\n    # Create LoanMPT metadata\n    loan_metadata = LoanMPTMetadata(\n        poolAddr=app.pool_address,\n        borrowerAddr=app.borrower_address,\n        lenderAddr=lender_wallet.address,\n        principal=float(app.principal),\n        interest=float(app.interest),\n        state='ONGOING'\n    )\n    \n    # Create LoanMPT on XRPL\n    loan_result = create_loan_mpt(\n        client=xrpl_client,\n        lender_wallet=lender_wallet,\n        metadata=loan_metadata\n    )\n    \n    loan_id = loan_result['mpt_id']\n    loan_tx_hash = loan_result['tx_hash']\n    \nexcept Exception as e:\n    raise HTTPException(500, f'Failed to create LoanMPT: {str(e)}')",
+            "insert_after": "Function signature"
+          },
+          {
+            "step": 6,
+            "action": "Update application state and create loan record",
+            "new_code": "# Update application state\napp.state = 'APPROVED'\n\n# Create loan in database\nloan = Loan(\n    loan_address=loan_id,  # MPT ID\n    pool_address=app.pool_address,\n    borrower_address=app.borrower_address,\n    lender_address=lender_wallet.address,\n    principal=app.principal,\n    interest=app.interest,\n    state='ONGOING',\n    start_date=datetime.now(),\n    end_date=datetime.now() + timedelta(days=pool.duration_days),\n    tx_hash=loan_tx_hash\n)\ndb.add(loan)\ndb.commit()"
+          },
+          {
+            "step": 7,
+            "action": "Update approval response",
+            "new_code": "return {\n    \"message\": \"Application approved, loan created\",\n    \"loan_id\": loan_id,\n    \"application_tx_hash\": app.tx_hash,\n    \"loan_tx_hash\": loan_tx_hash,\n    \"loan_explorer_url\": f\"https://testnet.xrpl.org/transactions/{loan_tx_hash}\",\n    \"application_explorer_url\": f\"https://testnet.xrpl.org/transactions/{app.tx_hash}\"\n}"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "POST /applications creates ApplicationMPT on XRPL",
+          "Returns ApplicationMPT tx_hash and ID",
+          "PUT /applications/{id}/approve creates LoanMPT on XRPL",
+          "Returns LoanMPT tx_hash and ID",
+          "Both transactions visible in XRPL explorer",
+          "Database stores both tx_hashes"
+        ],
+
+        "testing": {
+          "test_sequence": [
+            {
+              "step": 1,
+              "action": "Create pool",
+              "command": "curl -X POST http://localhost:8000/api/pools -d '{\"amount\":1000,\"interest_rate\":5,\"min_loan\":100}'",
+              "save": "pool_id from response"
+            },
+            {
+              "step": 2,
+              "action": "Create application",
+              "command": "curl -X POST http://localhost:8000/api/applications -d '{\"pool_address\":\"<pool_id>\",\"principal\":500}'",
+              "save": "application_id and tx_hash"
+            },
+            {
+              "step": 3,
+              "action": "Verify ApplicationMPT",
+              "command": "Visit explorer_url from step 2",
+              "expected": "See MPTCreate transaction"
+            },
+            {
+              "step": 4,
+              "action": "Approve application",
+              "command": "curl -X PUT http://localhost:8000/api/applications/<application_id>/approve",
+              "save": "loan_id and loan_tx_hash"
+            },
+            {
+              "step": 5,
+              "action": "Verify LoanMPT",
+              "command": "Visit loan_explorer_url",
+              "expected": "See MPTCreate transaction for loan"
+            }
+          ]
+        },
+
+        "documentation": [
+          {
+            "topic": "XRPL MPT Metadata",
+            "url": "https://xrpl.org/docs/concepts/tokens/fungible-tokens/multi-purpose-tokens",
+            "section": "Metadata"
+          },
+          {
+            "topic": "Our MPT Schemas",
+            "file": "backend/models/mpt_schemas.py",
+            "classes": ["ApplicationMPTMetadata", "LoanMPTMetadata"]
+          },
+          {
+            "topic": "Our MPT Service",
+            "file": "backend/services/mpt_service.py",
+            "functions": ["create_application_mpt()", "create_loan_mpt()"]
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": [],
+
+        "demo_notes": "This completes the full lending flow on XRPL! Pool → Application → Loan all as MPTs."
+      }
+    },
+
+    "backend-engineer-5": {
+      "id": "be-5",
+      "status": "READY",
+      "assigned": "DID Integration: Signup Flow",
+      "priority": "MEDIUM",
+      "estimated_hours": 2,
+
+      "task": {
+        "title": "Add DID Creation to User Signup",
+        "description": "When user signs up, create DID on XRPL and store in users table",
+
+        "files_to_create": [
+          {
+            "path": "backend/api/auth.py",
+            "purpose": "New file for authentication endpoints"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Create new auth.py file",
+            "path": "backend/api/auth.py",
+            "full_content": "from fastapi import APIRouter, HTTPException, Depends\nfrom sqlalchemy.orm import Session\nfrom pydantic import BaseModel\nfrom xrpl.wallet import Wallet\n\nfrom backend.config.database import get_db_session\nfrom backend.models.database import User\nfrom backend.services.did_service import create_did_for_user\nfrom backend.xrpl_client.client import connect\n\nrouter = APIRouter(prefix=\"/api/auth\", tags=[\"authentication\"])\nxrpl_client = connect('testnet')\n\ndef get_db():\n    db = get_db_session()\n    try:\n        yield db\n    finally:\n        db.close()\n\nclass SignupRequest(BaseModel):\n    username: str = None  # Optional for MVP\n\nclass SignupResponse(BaseModel):\n    address: str\n    did: str\n    seed: str  # WARNING: Only for demo! Never return in production\n    explorer_url: str\n    message: str\n\n@router.post(\"/signup\", response_model=SignupResponse)\nasync def signup(request: SignupRequest, db: Session = Depends(get_db)):\n    \"\"\"\n    Create new user with XRPL wallet and DID.\n    \n    For MVP demo:\n    - Generates wallet automatically\n    - Creates DID on XRPL testnet\n    - Returns seed (DEMO ONLY - never do this in production!)\n    \"\"\"\n    try:\n        # Generate wallet\n        wallet = Wallet.create()\n        \n        # Check if user already exists\n        existing_user = db.query(User).filter(User.address == wallet.address).first()\n        if existing_user:\n            raise HTTPException(400, \"User already exists\")\n        \n        # Create DID on XRPL\n        did = create_did_for_user(\n            user_wallet=wallet,\n            network='testnet',\n            update_database=False  # We'll handle DB manually\n        )\n        \n        # Create user in database\n        user = User(\n            address=wallet.address,\n            did=did\n        )\n        db.add(user)\n        db.commit()\n        db.refresh(user)\n        \n        return SignupResponse(\n            address=wallet.address,\n            did=did,\n            seed=wallet.seed,  # DEMO ONLY!\n            explorer_url=f\"https://testnet.xrpl.org/accounts/{wallet.address}\",\n            message=\"User created with DID on XRPL. Save your seed!\"\n        )\n        \n    except Exception as e:\n        db.rollback()\n        raise HTTPException(500, f\"Signup failed: {str(e)}\")\n\n@router.get(\"/verify/{address}\")\nasync def verify_user(address: str, db: Session = Depends(get_db)):\n    \"\"\"\n    Get user info including DID.\n    \"\"\"\n    user = db.query(User).filter(User.address == address).first()\n    if not user:\n        raise HTTPException(404, \"User not found\")\n    \n    return {\n        \"address\": user.address,\n        \"did\": user.did,\n        \"created_at\": user.created_at.isoformat() if user.created_at else None,\n        \"explorer_url\": f\"https://testnet.xrpl.org/accounts/{user.address}\"\n    }\n"
+          },
+          {
+            "step": 2,
+            "action": "Register auth router in main.py",
+            "path": "backend/api/main.py",
+            "code": "from backend.api.auth import router as auth_router\n\napp.include_router(auth_router)",
+            "line": "Add after app initialization, around line 40"
+          },
+          {
+            "step": 3,
+            "action": "Update User model if needed",
+            "path": "backend/models/database.py",
+            "verify": "User model has 'address' and 'did' fields",
+            "note": "Should already exist from database setup"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "POST /api/auth/signup creates user with wallet",
+          "DID created on XRPL testnet",
+          "User stored in database with DID",
+          "Returns wallet address, DID, and seed",
+          "GET /api/auth/verify/{address} returns user info",
+          "DID visible at testnet.xrpl.org"
+        ],
+
+        "testing": {
+          "manual_test": "curl -X POST http://localhost:8000/api/auth/signup -H 'Content-Type: application/json' -d '{}'",
+          "expected": "Returns: {address, did, seed, explorer_url}",
+          "verify_xrpl": "Visit returned explorer_url, click 'DID' tab, should show DID document",
+          "verify_db": "SELECT address, did FROM users;",
+          "test_verify": "curl http://localhost:8000/api/auth/verify/<address>"
+        },
+
+        "documentation": [
+          {
+            "topic": "XRPL DID",
+            "url": "https://xrpl.org/docs/concepts/decentralized-storage/decentralized-identifiers",
+            "section": "Creating DIDs"
+          },
+          {
+            "topic": "Our DID Service",
+            "file": "backend/services/did_service.py",
+            "function": "create_did_for_user()"
+          },
+          {
+            "topic": "FastAPI Router",
+            "url": "https://fastapi.tiangolo.com/tutorial/bigger-applications/",
+            "section": "APIRouter"
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": [],
+
+        "security_note": "WARNING: Returning seed in response is ONLY for demo! Production must use secure key management."
+      }
+    },
+
+    "frontend-engineer-1": {
+      "id": "fe-1",
+      "status": "READY",
+      "assigned": "XRPL Wallet Integration Layer",
+      "priority": "HIGH",
+      "estimated_hours": 5,
+
+      "task": {
+        "title": "Create Frontend XRPL Wallet Library",
+        "description": "Build wallet connection layer with Xumm SDK and direct wallet support",
+
+        "files_to_create": [
+          "frontend/lib/xrpl/index.ts",
+          "frontend/lib/xrpl/wallet.ts",
+          "frontend/lib/xrpl/transactions.ts",
+          "frontend/lib/xrpl/hooks.ts"
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Create directory structure",
+            "commands": [
+              "mkdir -p frontend/lib/xrpl"
+            ]
+          },
+          {
+            "step": 2,
+            "action": "Install dependencies",
+            "commands": [
+              "cd frontend",
+              "npm install xrpl xumm-sdk"
+            ],
+            "packages": {
+              "xrpl": "^2.14.0",
+              "xumm-sdk": "^1.11.2"
+            }
+          },
+          {
+            "step": 3,
+            "action": "Create wallet.ts - Wallet connection utilities",
+            "path": "frontend/lib/xrpl/wallet.ts",
+            "full_content": "import { Client, Wallet } from 'xrpl';\nimport { XummSdk } from 'xumm-sdk';\n\nexport type WalletType = 'xumm' | 'seed' | 'disconnected';\n\nexport interface ConnectedWallet {\n  address: string;\n  type: WalletType;\n  seed?: string; // Only for demo 'seed' type\n}\n\n// Initialize Xumm SDK\nlet xummClient: XummSdk | null = null;\nif (typeof window !== 'undefined') {\n  try {\n    xummClient = new XummSdk(\n      process.env.NEXT_PUBLIC_XUMM_API_KEY || '',\n      process.env.NEXT_PUBLIC_XUMM_API_SECRET || ''\n    );\n  } catch (e) {\n    console.warn('Xumm SDK not initialized:', e);\n  }\n}\n\n/**\n * Connect to XRPL testnet\n */\nexport async function connectToXRPL(): Promise<Client> {\n  const client = new Client('wss://s.altnet.rippletest.net:51233');\n  await client.connect();\n  return client;\n}\n\n/**\n * Connect wallet via Xumm (mobile)\n */\nexport async function connectXummWallet(): Promise<ConnectedWallet> {\n  if (!xummClient) {\n    throw new Error('Xumm SDK not initialized. Check API keys.');\n  }\n\n  try {\n    // Create sign-in payload\n    const payload = await xummClient.payload.create({\n      txjson: {\n        TransactionType: 'SignIn'\n      }\n    });\n\n    // Open Xumm app/QR\n    if (payload.next?.always) {\n      window.open(payload.next.always, '_blank');\n    }\n\n    // Wait for user to sign\n    const result = await xummClient.payload.subscribe(payload.uuid);\n\n    if (result.payload.signed) {\n      return {\n        address: result.payload.request_json?.Account || '',\n        type: 'xumm'\n      };\n    }\n\n    throw new Error('User cancelled Xumm signin');\n  } catch (error) {\n    throw new Error(`Xumm connection failed: ${error}`);\n  }\n}\n\n/**\n * Connect wallet via seed (DEMO ONLY - for testing)\n */\nexport function connectSeedWallet(seed: string): ConnectedWallet {\n  try {\n    const wallet = Wallet.fromSeed(seed);\n    return {\n      address: wallet.address,\n      type: 'seed',\n      seed: seed\n    };\n  } catch (error) {\n    throw new Error(`Invalid seed: ${error}`);\n  }\n}\n\n/**\n * Generate new wallet (DEMO ONLY)\n */\nexport function generateWallet(): ConnectedWallet {\n  const wallet = Wallet.generate();\n  return {\n    address: wallet.address,\n    type: 'seed',\n    seed: wallet.seed\n  };\n}\n"
+          },
+          {
+            "step": 4,
+            "action": "Create transactions.ts - Transaction helpers",
+            "path": "frontend/lib/xrpl/transactions.ts",
+            "full_content": "import { Client, Wallet, Transaction } from 'xrpl';\nimport { XummSdk } from 'xumm-sdk';\nimport { ConnectedWallet } from './wallet';\n\n/**\n * Sign and submit transaction based on wallet type\n */\nexport async function signAndSubmit(\n  client: Client,\n  transaction: Transaction,\n  wallet: ConnectedWallet\n): Promise<{ hash: string; explorerUrl: string }> {\n  \n  if (wallet.type === 'xumm') {\n    return await signWithXumm(transaction, wallet.address);\n  } else if (wallet.type === 'seed' && wallet.seed) {\n    return await signWithSeed(client, transaction, wallet.seed);\n  }\n  \n  throw new Error('Invalid wallet type');\n}\n\n/**\n * Sign transaction with Xumm\n */\nasync function signWithXumm(\n  transaction: Transaction,\n  address: string\n): Promise<{ hash: string; explorerUrl: string }> {\n  const xumm = new XummSdk(\n    process.env.NEXT_PUBLIC_XUMM_API_KEY || '',\n    process.env.NEXT_PUBLIC_XUMM_API_SECRET || ''\n  );\n\n  // Create payload\n  const payload = await xumm.payload.create({\n    txjson: transaction\n  });\n\n  // Open Xumm\n  if (payload.next?.always) {\n    window.open(payload.next.always, '_blank');\n  }\n\n  // Wait for signature\n  const result = await xumm.payload.subscribe(payload.uuid);\n\n  if (!result.payload.signed) {\n    throw new Error('Transaction not signed');\n  }\n\n  const hash = result.payload.tx_id || '';\n  return {\n    hash,\n    explorerUrl: `https://testnet.xrpl.org/transactions/${hash}`\n  };\n}\n\n/**\n * Sign transaction with seed (DEMO ONLY)\n */\nasync function signWithSeed(\n  client: Client,\n  transaction: Transaction,\n  seed: string\n): Promise<{ hash: string; explorerUrl: string }> {\n  const wallet = Wallet.fromSeed(seed);\n  \n  // Auto-fill transaction\n  const prepared = await client.autofill(transaction);\n  \n  // Sign\n  const signed = wallet.sign(prepared);\n  \n  // Submit\n  const result = await client.submitAndWait(signed.tx_blob);\n  \n  return {\n    hash: result.result.hash,\n    explorerUrl: `https://testnet.xrpl.org/transactions/${result.result.hash}`\n  };\n}\n"
+          },
+          {
+            "step": 5,
+            "action": "Create hooks.ts - React hooks for wallet state",
+            "path": "frontend/lib/xrpl/hooks.ts",
+            "full_content": "import { useState, useEffect } from 'react';\nimport { Client } from 'xrpl';\nimport { ConnectedWallet, connectToXRPL, connectXummWallet, connectSeedWallet, generateWallet } from './wallet';\n\n/**\n * Hook for XRPL wallet connection\n */\nexport function useWallet() {\n  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);\n  const [client, setClient] = useState<Client | null>(null);\n  const [isConnecting, setIsConnecting] = useState(false);\n  const [error, setError] = useState<string | null>(null);\n\n  // Initialize client on mount\n  useEffect(() => {\n    connectToXRPL()\n      .then(c => setClient(c))\n      .catch(e => setError(`Failed to connect to XRPL: ${e.message}`));\n\n    return () => {\n      if (client?.isConnected()) {\n        client.disconnect();\n      }\n    };\n  }, []);\n\n  const connectXumm = async () => {\n    setIsConnecting(true);\n    setError(null);\n    try {\n      const w = await connectXummWallet();\n      setWallet(w);\n      localStorage.setItem('wallet', JSON.stringify(w));\n    } catch (e: any) {\n      setError(e.message);\n    } finally {\n      setIsConnecting(false);\n    }\n  };\n\n  const connectSeed = async (seed: string) => {\n    setIsConnecting(true);\n    setError(null);\n    try {\n      const w = connectSeedWallet(seed);\n      setWallet(w);\n      localStorage.setItem('wallet', JSON.stringify(w));\n    } catch (e: any) {\n      setError(e.message);\n    } finally {\n      setIsConnecting(false);\n    }\n  };\n\n  const createWallet = () => {\n    const w = generateWallet();\n    setWallet(w);\n    localStorage.setItem('wallet', JSON.stringify(w));\n    return w;\n  };\n\n  const disconnect = () => {\n    setWallet(null);\n    localStorage.removeItem('wallet');\n  };\n\n  // Auto-restore from localStorage\n  useEffect(() => {\n    const saved = localStorage.getItem('wallet');\n    if (saved) {\n      try {\n        setWallet(JSON.parse(saved));\n      } catch (e) {\n        console.error('Failed to restore wallet');\n      }\n    }\n  }, []);\n\n  return {\n    wallet,\n    client,\n    isConnecting,\n    error,\n    isConnected: !!wallet,\n    connectXumm,\n    connectSeed,\n    createWallet,\n    disconnect\n  };\n}\n"
+          },
+          {
+            "step": 6,
+            "action": "Create index.ts - Main exports",
+            "path": "frontend/lib/xrpl/index.ts",
+            "full_content": "export * from './wallet';\nexport * from './transactions';\nexport * from './hooks';\n"
+          },
+          {
+            "step": 7,
+            "action": "Create environment variables template",
+            "path": "frontend/.env.local.example",
+            "content": "# Xumm SDK Credentials\n# Get from: https://xumm.app/\nNEXT_PUBLIC_XUMM_API_KEY=your_api_key_here\nNEXT_PUBLIC_XUMM_API_SECRET=your_api_secret_here\n\n# Backend API\nNEXT_PUBLIC_API_URL=http://localhost:8000\n"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "Can connect wallet via Xumm SDK",
+          "Can connect wallet via seed (demo mode)",
+          "Can generate new wallet",
+          "useWallet() hook provides wallet state",
+          "Transaction signing works with both methods",
+          "Wallet persists in localStorage",
+          "Error handling for connection failures"
+        ],
+
+        "testing": {
+          "create_test_component": "frontend/components/test-wallet.tsx",
+          "test_code": "import { useWallet } from '@/lib/xrpl';\n\nexport function TestWallet() {\n  const { wallet, isConnected, connectSeed, createWallet, disconnect } = useWallet();\n\n  return (\n    <div>\n      <p>Connected: {isConnected ? 'Yes' : 'No'}</p>\n      {wallet && <p>Address: {wallet.address}</p>}\n      <button onClick={createWallet}>Generate Wallet</button>\n      <button onClick={() => connectSeed('sEdV...')}>Connect Seed</button>\n      <button onClick={disconnect}>Disconnect</button>\n    </div>\n  );\n}",
+          "manual_test": "Add TestWallet component to a page and test all buttons"
+        },
+
+        "documentation": [
+          {
+            "topic": "XRPL.js Client",
+            "url": "https://js.xrpl.org/modules.html#Client",
+            "section": "Client connection"
+          },
+          {
+            "topic": "Xumm SDK",
+            "url": "https://xumm.readme.io/docs/getting-started-sdk",
+            "section": "JavaScript SDK"
+          },
+          {
+            "topic": "React Hooks",
+            "url": "https://react.dev/reference/react/hooks",
+            "section": "useState, useEffect"
+          },
+          {
+            "topic": "Example Implementation",
+            "url": "https://github.com/Aaditya-T/xrpl-wallet-connect",
+            "section": "Wallet connection template"
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": [],
+
+        "notes": "This creates reusable wallet infrastructure. All other frontend components will use these hooks."
+      }
+    },
+
+    "frontend-engineer-2": {
+      "id": "fe-2",
+      "status": "READY",
+      "assigned": "API Client Layer",
+      "priority": "HIGH",
+      "estimated_hours": 3,
+
+      "task": {
+        "title": "Create Frontend API Client",
+        "description": "Build typed API client for backend communication",
+
+        "files_to_create": [
+          "frontend/lib/api/index.ts",
+          "frontend/lib/api/types.ts",
+          "frontend/lib/api/pools.ts",
+          "frontend/lib/api/applications.ts",
+          "frontend/lib/api/auth.ts"
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Create types.ts - API response types",
+            "path": "frontend/lib/api/types.ts",
+            "full_content": "// API Response Types\n\nexport interface Pool {\n  pool_address: string;\n  issuer_address: string;\n  total_balance: number;\n  current_balance: number;\n  minimum_loan: number;\n  duration_days: number;\n  interest_rate: number;\n  tx_hash?: string;\n  created_at?: string;\n}\n\nexport interface Application {\n  application_address: string;\n  borrower_address: string;\n  pool_address: string;\n  principal: number;\n  interest: number;\n  state: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';\n  application_date: string;\n  dissolution_date?: string;\n  tx_hash?: string;\n}\n\nexport interface Loan {\n  loan_address: string;\n  pool_address: string;\n  borrower_address: string;\n  lender_address: string;\n  principal: number;\n  interest: number;\n  state: 'ONGOING' | 'PAID' | 'DEFAULTED';\n  start_date: string;\n  end_date: string;\n  tx_hash?: string;\n}\n\nexport interface User {\n  address: string;\n  did: string;\n  created_at?: string;\n}\n\nexport interface ApiResponse<T> {\n  data?: T;\n  error?: string;\n  tx_hash?: string;\n  explorer_url?: string;\n  message?: string;\n}\n\n// Request Types\nexport interface CreatePoolRequest {\n  amount: number;\n  interest_rate: number;\n  min_loan?: number;\n  duration?: number;\n}\n\nexport interface CreateApplicationRequest {\n  pool_address: string;\n  principal: number;\n}\n\nexport interface SignupRequest {\n  username?: string;\n}\n"
+          },
+          {
+            "step": 2,
+            "action": "Create pools.ts - Pool API calls",
+            "path": "frontend/lib/api/pools.ts",
+            "full_content": "import { Pool, CreatePoolRequest, ApiResponse } from './types';\n\nconst API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';\n\nexport async function getPools(): Promise<Pool[]> {\n  const response = await fetch(`${API_URL}/api/pools`);\n  if (!response.ok) {\n    throw new Error(`Failed to fetch pools: ${response.statusText}`);\n  }\n  return response.json();\n}\n\nexport async function getPool(poolId: string): Promise<Pool> {\n  const response = await fetch(`${API_URL}/api/pools/${poolId}`);\n  if (!response.ok) {\n    throw new Error(`Failed to fetch pool: ${response.statusText}`);\n  }\n  return response.json();\n}\n\nexport async function createPool(data: CreatePoolRequest): Promise<ApiResponse<Pool>> {\n  const response = await fetch(`${API_URL}/api/pools`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify(data)\n  });\n  \n  if (!response.ok) {\n    const error = await response.text();\n    throw new Error(`Failed to create pool: ${error}`);\n  }\n  \n  return response.json();\n}\n"
+          },
+          {
+            "step": 3,
+            "action": "Create applications.ts - Application & Loan APIs",
+            "path": "frontend/lib/api/applications.ts",
+            "full_content": "import { Application, Loan, CreateApplicationRequest, ApiResponse } from './types';\n\nconst API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';\n\nexport async function getApplications(): Promise<Application[]> {\n  const response = await fetch(`${API_URL}/api/applications`);\n  if (!response.ok) {\n    throw new Error(`Failed to fetch applications: ${response.statusText}`);\n  }\n  return response.json();\n}\n\nexport async function createApplication(\n  data: CreateApplicationRequest\n): Promise<ApiResponse<Application>> {\n  const response = await fetch(`${API_URL}/api/applications`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify(data)\n  });\n  \n  if (!response.ok) {\n    const error = await response.text();\n    throw new Error(`Failed to create application: ${error}`);\n  }\n  \n  return response.json();\n}\n\nexport async function approveApplication(\n  applicationId: string\n): Promise<ApiResponse<Loan>> {\n  const response = await fetch(\n    `${API_URL}/api/applications/${applicationId}/approve`,\n    { method: 'PUT' }\n  );\n  \n  if (!response.ok) {\n    const error = await response.text();\n    throw new Error(`Failed to approve application: ${error}`);\n  }\n  \n  return response.json();\n}\n\nexport async function getLoans(): Promise<Loan[]> {\n  const response = await fetch(`${API_URL}/api/loans`);\n  if (!response.ok) {\n    throw new Error(`Failed to fetch loans: ${response.statusText}`);\n  }\n  return response.json();\n}\n"
+          },
+          {
+            "step": 4,
+            "action": "Create auth.ts - Auth API calls",
+            "path": "frontend/lib/api/auth.ts",
+            "full_content": "import { User, SignupRequest, ApiResponse } from './types';\n\nconst API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';\n\nexport async function signup(data: SignupRequest = {}): Promise<ApiResponse<User & { seed: string }>> {\n  const response = await fetch(`${API_URL}/api/auth/signup`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify(data)\n  });\n  \n  if (!response.ok) {\n    const error = await response.text();\n    throw new Error(`Signup failed: ${error}`);\n  }\n  \n  return response.json();\n}\n\nexport async function verifyUser(address: string): Promise<User> {\n  const response = await fetch(`${API_URL}/api/auth/verify/${address}`);\n  if (!response.ok) {\n    throw new Error(`Failed to verify user: ${response.statusText}`);\n  }\n  return response.json();\n}\n"
+          },
+          {
+            "step": 5,
+            "action": "Create index.ts - Export all APIs",
+            "path": "frontend/lib/api/index.ts",
+            "full_content": "export * from './types';\nexport * from './pools';\nexport * from './applications';\nexport * from './auth';\n"
+          },
+          {
+            "step": 6,
+            "action": "Create React hooks for API calls",
+            "path": "frontend/lib/api/hooks.ts",
+            "full_content": "import { useState, useEffect } from 'react';\nimport * as api from './index';\nimport { Pool, Application, Loan } from './types';\n\nexport function usePools() {\n  const [pools, setPools] = useState<Pool[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [error, setError] = useState<string | null>(null);\n\n  const fetchPools = async () => {\n    try {\n      setLoading(true);\n      const data = await api.getPools();\n      setPools(data);\n      setError(null);\n    } catch (e: any) {\n      setError(e.message);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  useEffect(() => {\n    fetchPools();\n  }, []);\n\n  return { pools, loading, error, refetch: fetchPools };\n}\n\nexport function useApplications() {\n  const [applications, setApplications] = useState<Application[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [error, setError] = useState<string | null>(null);\n\n  const fetchApplications = async () => {\n    try {\n      setLoading(true);\n      const data = await api.getApplications();\n      setApplications(data);\n      setError(null);\n    } catch (e: any) {\n      setError(e.message);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  useEffect(() => {\n    fetchApplications();\n  }, []);\n\n  return { applications, loading, error, refetch: fetchApplications };\n}\n\nexport function useLoans() {\n  const [loans, setLoans] = useState<Loan[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [error, setError] = useState<string | null>(null);\n\n  const fetchLoans = async () => {\n    try {\n      setLoading(true);\n      const data = await api.getLoans();\n      setLoans(data);\n      setError(null);\n    } catch (e: any) {\n      setError(e.message);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  useEffect(() => {\n    fetchLoans();\n  }, []);\n\n  return { loans, loading, error, refetch: fetchLoans };\n}\n"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "All API endpoints have typed functions",
+          "React hooks for data fetching (usePools, useApplications, useLoans)",
+          "Proper error handling",
+          "TypeScript types match backend responses",
+          "Environment variable for API URL"
+        ],
+
+        "testing": {
+          "unit_test": "Create test component that uses hooks",
+          "manual_test": "import { usePools } from '@/lib/api/hooks'; // Should work in any component"
+        },
+
+        "documentation": [
+          {
+            "topic": "Fetch API",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+            "section": "Using Fetch"
+          },
+          {
+            "topic": "React Query (alternative)",
+            "url": "https://tanstack.com/query/latest",
+            "note": "Optional: Could use React Query for better caching"
+          }
+        ],
+
+        "dependencies": [],
+        "blockers": []
+      }
+    },
+
+    "frontend-engineer-3": {
+      "id": "fe-3",
+      "status": "READY",
+      "assigned": "Lender UI Integration",
+      "priority": "MEDIUM",
+      "estimated_hours": 4,
+
+      "task": {
+        "title": "Wire Lender UI to Backend",
+        "description": "Connect lender-view.tsx to actual API calls and wallet signing",
+
+        "files_to_modify": [
+          {
+            "path": "frontend/components/lendx/lender-view.tsx",
+            "current_state": "Mock UI with no backend",
+            "changes": "Add API calls, wallet integration, XRPL transaction signing"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Add imports to lender-view.tsx",
+            "code": "import { useWallet } from '@/lib/xrpl';\nimport { usePools, useApplications } from '@/lib/api/hooks';\nimport * as api from '@/lib/api';\nimport { useState } from 'react';",
+            "line": "Add at top of file"
+          },
+          {
+            "step": 2,
+            "action": "Add wallet and data hooks in component",
+            "code": "const { wallet, isConnected } = useWallet();\nconst { pools, loading: poolsLoading, refetch: refetchPools } = usePools();\nconst { applications, refetch: refetchApplications } = useApplications();\nconst [creating, setCreating] = useState(false);",
+            "location": "Inside LenderView component, at top"
+          },
+          {
+            "step": 3,
+            "action": "Replace mock pool creation with real API call",
+            "find": "// TODO: Create pool logic",
+            "replace": "const handleCreatePool = async (formData: any) => {\n  if (!isConnected) {\n    alert('Please connect wallet first');\n    return;\n  }\n\n  setCreating(true);\n  try {\n    const result = await api.createPool({\n      amount: parseFloat(formData.amount),\n      interest_rate: parseFloat(formData.interestRate),\n      min_loan: parseFloat(formData.minLoan),\n      duration: parseInt(formData.duration)\n    });\n\n    alert(`Pool created! TX: ${result.tx_hash}\\n\\nView at: ${result.explorer_url}`);\n    \n    // Refresh pools list\n    await refetchPools();\n  } catch (error: any) {\n    alert(`Failed to create pool: ${error.message}`);\n  } finally {\n    setCreating(false);\n  }\n};"
+          },
+          {
+            "step": 4,
+            "action": "Replace pools list with real data",
+            "find": "// Mock pools array",
+            "replace": "// Use real pools from API\n{poolsLoading ? (\n  <div>Loading pools...</div>\n) : pools.length === 0 ? (\n  <div>No pools yet. Create one!</div>\n) : (\n  <div className=\"grid gap-4\">\n    {pools.map(pool => (\n      <PoolCard key={pool.pool_address} pool={pool} />\n    ))}\n  </div>\n)}"
+          },
+          {
+            "step": 5,
+            "action": "Add approve/reject application handlers",
+            "code": "const handleApproveApplication = async (appId: string) => {\n  if (!window.confirm('Approve this application?')) return;\n\n  try {\n    const result = await api.approveApplication(appId);\n    alert(`Approved! Loan created.\\n\\nLoan TX: ${result.loan_tx_hash}\\n\\nView at: ${result.loan_explorer_url}`);\n    \n    // Refresh data\n    await refetchApplications();\n    await refetchPools();\n  } catch (error: any) {\n    alert(`Failed to approve: ${error.message}`);\n  }\n};\n\nconst handleRejectApplication = async (appId: string) => {\n  // TODO: Add reject endpoint\n  alert('Reject functionality coming soon');\n};",
+            "location": "Add as functions in component"
+          },
+          {
+            "step": 6,
+            "action": "Update applications list to use real data",
+            "find": "// Mock applications",
+            "replace": "{applications\n  .filter(app => app.state === 'PENDING')\n  .map(app => (\n    <ApplicationCard \n      key={app.application_address}\n      application={app}\n      onApprove={() => handleApproveApplication(app.application_address)}\n      onReject={() => handleRejectApplication(app.application_address)}\n    />\n  ))}"
+          },
+          {
+            "step": 7,
+            "action": "Add wallet connection check",
+            "code": "if (!isConnected) {\n  return (\n    <div className=\"p-8 text-center\">\n      <h2 className=\"text-2xl font-bold mb-4\">Connect Wallet</h2>\n      <p className=\"mb-4\">Please connect your wallet to access lender features.</p>\n      {/* Wallet connection UI will be added by another engineer */}\n    </div>\n  );\n}",
+            "location": "At start of component return, before main UI"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "Pool creation calls API and creates PoolMPT",
+          "Pools list shows real data from database",
+          "Application approval creates LoanMPT",
+          "Shows transaction hashes and explorer links",
+          "Wallet connection check before actions",
+          "Loading states while fetching data",
+          "Error messages shown to user"
+        ],
+
+        "testing": {
+          "test_sequence": [
+            {
+              "step": 1,
+              "action": "Connect wallet",
+              "verify": "Wallet address displayed"
+            },
+            {
+              "step": 2,
+              "action": "Create pool via form",
+              "verify": "Alert shows tx_hash and explorer link"
+            },
+            {
+              "step": 3,
+              "action": "Click explorer link",
+              "verify": "See PoolMPT transaction on testnet.xrpl.org"
+            },
+            {
+              "step": 4,
+              "action": "Refresh page",
+              "verify": "Pool appears in pools list"
+            },
+            {
+              "step": 5,
+              "action": "Approve application",
+              "verify": "Alert shows loan tx_hash"
+            }
+          ]
+        },
+
+        "documentation": [
+          {
+            "topic": "React State Management",
+            "url": "https://react.dev/learn/managing-state",
+            "section": "useState"
+          },
+          {
+            "topic": "Async Functions",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function"
+          }
+        ],
+
+        "dependencies": ["fe-1", "fe-2"],
+        "blockers": []
+      }
+    },
+
+    "frontend-engineer-4": {
+      "id": "fe-4",
+      "status": "READY",
+      "assigned": "Borrower UI Integration",
+      "priority": "MEDIUM",
+      "estimated_hours": 4,
+
+      "task": {
+        "title": "Wire Borrower UI to Backend",
+        "description": "Connect borrower-view.tsx to API for loan applications and signup",
+
+        "files_to_modify": [
+          {
+            "path": "frontend/components/lendx/borrower-view.tsx",
+            "changes": "Add API calls, wallet integration, signup flow"
+          }
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Add imports",
+            "code": "import { useWallet } from '@/lib/xrpl';\nimport { usePools, useApplications, useLoans } from '@/lib/api/hooks';\nimport * as api from '@/lib/api';\nimport { useState } from 'react';",
+            "line": "Top of file"
+          },
+          {
+            "step": 2,
+            "action": "Add hooks",
+            "code": "const { wallet, isConnected, createWallet } = useWallet();\nconst { pools, loading: poolsLoading } = usePools();\nconst { applications, refetch: refetchApplications } = useApplications();\nconst { loans, refetch: refetchLoans } = useLoans();\nconst [applying, setApplying] = useState(false);\nconst [signingUp, setSigningUp] = useState(false);",
+            "location": "Inside BorrowerView component"
+          },
+          {
+            "step": 3,
+            "action": "Add signup handler",
+            "code": "const handleSignup = async () => {\n  setSigningUp(true);\n  try {\n    // Create wallet and DID\n    const result = await api.signup();\n    \n    alert(\n      `Signup successful!\\n\\n` +\n      `Address: ${result.address}\\n` +\n      `DID: ${result.did}\\n\\n` +\n      `SAVE THIS SEED: ${result.seed}\\n\\n` +\n      `View DID at: ${result.explorer_url}`\n    );\n\n    // Connect the new wallet\n    // For demo, we'd need to use the seed\n    // In production, wallet would be managed securely\n  } catch (error: any) {\n    alert(`Signup failed: ${error.message}`);\n  } finally {\n    setSigningUp(false);\n  }\n};",
+            "location": "Add as function in component"
+          },
+          {
+            "step": 4,
+            "action": "Add apply for loan handler",
+            "code": "const handleApplyForLoan = async (poolId: string, amount: number) => {\n  if (!isConnected) {\n    alert('Please connect wallet first');\n    return;\n  }\n\n  setApplying(true);\n  try {\n    const result = await api.createApplication({\n      pool_address: poolId,\n      principal: amount\n    });\n\n    alert(\n      `Application submitted!\\n\\n` +\n      `Application ID: ${result.application_id}\\n` +\n      `TX Hash: ${result.tx_hash}\\n\\n` +\n      `View at: ${result.explorer_url}`\n    );\n\n    // Refresh applications list\n    await refetchApplications();\n  } catch (error: any) {\n    alert(`Failed to apply: ${error.message}`);\n  } finally {\n    setApplying(false);\n  }\n};",
+            "location": "Add as function in component"
+          },
+          {
+            "step": 5,
+            "action": "Replace mock data with real pools",
+            "find": "// Mock available pools",
+            "replace": "{poolsLoading ? (\n  <div>Loading pools...</div>\n) : (\n  <div className=\"grid gap-4\">\n    {pools.map(pool => (\n      <PoolCard \n        key={pool.pool_address}\n        pool={pool}\n        onApply={(amount) => handleApplyForLoan(pool.pool_address, amount)}\n      />\n    ))}\n  </div>\n)}"
+          },
+          {
+            "step": 6,
+            "action": "Show user's applications",
+            "code": "const myApplications = applications.filter(\n  app => app.borrower_address === wallet?.address\n);\n\n// In render:\n<div className=\"mt-8\">\n  <h3 className=\"text-xl font-bold mb-4\">My Applications</h3>\n  {myApplications.length === 0 ? (\n    <p>No applications yet.</p>\n  ) : (\n    <div className=\"space-y-4\">\n      {myApplications.map(app => (\n        <div key={app.application_address} className=\"border p-4 rounded\">\n          <div>Status: {app.state}</div>\n          <div>Amount: ${app.principal}</div>\n          <div>Interest: ${app.interest}</div>\n          <a \n            href={`https://testnet.xrpl.org/transactions/${app.tx_hash}`}\n            target=\"_blank\"\n            className=\"text-blue-500 underline\"\n          >\n            View on Explorer\n          </a>\n        </div>\n      ))}\n    </div>\n  )}\n</div>",
+            "location": "Add to render section"
+          },
+          {
+            "step": 7,
+            "action": "Show user's loans",
+            "code": "const myLoans = loans.filter(\n  loan => loan.borrower_address === wallet?.address\n);\n\n// In render:\n<div className=\"mt-8\">\n  <h3 className=\"text-xl font-bold mb-4\">My Loans</h3>\n  {myLoans.length === 0 ? (\n    <p>No active loans.</p>\n  ) : (\n    <div className=\"space-y-4\">\n      {myLoans.map(loan => (\n        <div key={loan.loan_address} className=\"border p-4 rounded\">\n          <div>Status: {loan.state}</div>\n          <div>Amount: ${loan.principal}</div>\n          <div>Interest: ${loan.interest}</div>\n          <div>Due: {new Date(loan.end_date).toLocaleDateString()}</div>\n          <a \n            href={`https://testnet.xrpl.org/transactions/${loan.tx_hash}`}\n            target=\"_blank\"\n            className=\"text-blue-500 underline\"\n          >\n            View on Explorer\n          </a>\n        </div>\n      ))}\n    </div>\n  )}\n</div>",
+            "location": "Add to render section"
+          }
+        ],
+
+        "acceptance_criteria": [
+          "Signup creates DID and shows seed",
+          "Can apply for loan from available pools",
+          "Application creates ApplicationMPT on XRPL",
+          "Shows user's applications with status",
+          "Shows user's approved loans",
+          "Explorer links work for all transactions",
+          "Filters data by wallet address"
+        ],
+
+        "testing": {
+          "test_flow": [
+            {
+              "step": 1,
+              "action": "Click 'Sign Up'",
+              "verify": "Alert shows address, DID, and seed"
+            },
+            {
+              "step": 2,
+              "action": "Click explorer link",
+              "verify": "See DID on testnet.xrpl.org"
+            },
+            {
+              "step": 3,
+              "action": "Browse available pools",
+              "verify": "Pools list shows real data"
+            },
+            {
+              "step": 4,
+              "action": "Apply for loan",
+              "verify": "Alert shows application tx_hash"
+            },
+            {
+              "step": 5,
+              "action": "Check 'My Applications'",
+              "verify": "Application appears with PENDING status"
+            },
+            {
+              "step": 6,
+              "action": "After lender approves",
+              "verify": "Loan appears in 'My Loans'"
+            }
+          ]
+        },
+
+        "documentation": [
+          {
+            "topic": "Array filter",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter"
+          },
+          {
+            "topic": "Date formatting",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toLocaleDateString"
+          }
+        ],
+
+        "dependencies": ["fe-1", "fe-2"],
+        "blockers": []
+      }
+    },
+
+    "qa-engineer-1": {
+      "id": "qa-1",
+      "status": "READY",
+      "assigned": "End-to-End Testing",
+      "priority": "MEDIUM",
+      "estimated_hours": 6,
+
+      "task": {
+        "title": "Create MVP Testing Suite",
+        "description": "Build automated tests for complete lending flow and setup test infrastructure",
+
+        "files_to_create": [
+          "backend/tests/test_e2e_mvp.py",
+          "backend/tests/test_api_integration.py",
+          "frontend/tests/integration.test.ts"
+        ],
+
+        "detailed_steps": [
+          {
+            "step": 1,
+            "action": "Create E2E test for complete lending flow",
+            "path": "backend/tests/test_e2e_mvp.py",
+            "full_content": "\"\"\"End-to-end test for MVP lending flow on XRPL testnet.\"\"\"\nimport pytest\nfrom xrpl.wallet import Wallet\nfrom backend.xrpl_client.client import connect\nfrom backend.services.mpt_service import (\n    create_pool_mpt,\n    create_application_mpt,\n    create_loan_mpt\n)\nfrom backend.services.did_service import create_did_for_user\nfrom backend.models.mpt_schemas import (\n    PoolMPTMetadata,\n    ApplicationMPTMetadata,\n    LoanMPTMetadata\n)\n\n@pytest.fixture(scope=\"module\")\ndef xrpl_client():\n    \"\"\"Connect to XRPL testnet.\"\"\"\n    client = connect('testnet')\n    yield client\n    client.close()\n\n@pytest.fixture\ndef lender_wallet():\n    \"\"\"Generate lender wallet.\"\"\"\n    return Wallet.create()\n\n@pytest.fixture\ndef borrower_wallet():\n    \"\"\"Generate borrower wallet.\"\"\"\n    return Wallet.create()\n\ndef test_complete_lending_flow(xrpl_client, lender_wallet, borrower_wallet):\n    \"\"\"Test: Create pool → Apply → Approve → Verify on XRPL.\"\"\"\n    \n    # Step 1: Create PoolMPT\n    pool_metadata = PoolMPTMetadata(\n        issuerAddr=lender_wallet.address,\n        totalBalance=10000.0,\n        currentBalance=10000.0,\n        minimumLoan=100.0,\n        duration=30,\n        interestRate=5.0\n    )\n    \n    pool_result = create_pool_mpt(xrpl_client, lender_wallet, pool_metadata)\n    assert 'mpt_id' in pool_result\n    assert 'tx_hash' in pool_result\n    pool_id = pool_result['mpt_id']\n    print(f\"✅ Pool created: {pool_id}\")\n    print(f\"   Explorer: https://testnet.xrpl.org/transactions/{pool_result['tx_hash']}\")\n    \n    # Step 2: Borrower creates DID\n    did = create_did_for_user(borrower_wallet, network='testnet', update_database=False)\n    assert did.startswith('did:xrpl:1:')\n    print(f\"✅ DID created: {did}\")\n    \n    # Step 3: Create ApplicationMPT\n    app_metadata = ApplicationMPTMetadata(\n        borrowerAddr=borrower_wallet.address,\n        poolAddr=pool_id,\n        principal=500.0,\n        interest=25.0,\n        state='PENDING'\n    )\n    \n    app_result = create_application_mpt(xrpl_client, borrower_wallet, app_metadata)\n    assert 'mpt_id' in app_result\n    app_id = app_result['mpt_id']\n    print(f\"✅ Application created: {app_id}\")\n    print(f\"   Explorer: https://testnet.xrpl.org/transactions/{app_result['tx_hash']}\")\n    \n    # Step 4: Create LoanMPT (approval)\n    loan_metadata = LoanMPTMetadata(\n        poolAddr=pool_id,\n        borrowerAddr=borrower_wallet.address,\n        lenderAddr=lender_wallet.address,\n        principal=500.0,\n        interest=25.0,\n        state='ONGOING'\n    )\n    \n    loan_result = create_loan_mpt(xrpl_client, lender_wallet, loan_metadata)\n    assert 'mpt_id' in loan_result\n    loan_id = loan_result['mpt_id']\n    print(f\"✅ Loan created: {loan_id}\")\n    print(f\"   Explorer: https://testnet.xrpl.org/transactions/{loan_result['tx_hash']}\")\n    \n    # Verification\n    print(\"\\n=== MVP DEMO SUCCESS ===\")\n    print(f\"Pool MPT: {pool_id}\")\n    print(f\"Application MPT: {app_id}\")\n    print(f\"Loan MPT: {loan_id}\")\n    print(f\"Borrower DID: {did}\")\n    print(\"\\nAll transactions visible on XRPL testnet!\")\n\nif __name__ == '__main__':\n    # Can run directly for manual testing\n    pytest.main([__file__, '-v', '-s'])\n"
+          },
+          {
+            "step": 2,
+            "action": "Create API integration tests",
+            "path": "backend/tests/test_api_integration.py",
+            "full_content": "\"\"\"Integration tests for FastAPI endpoints.\"\"\"\nimport pytest\nfrom fastapi.testclient import TestClient\nfrom backend.api.main import app\n\nclient = TestClient(app)\n\ndef test_create_pool_endpoint():\n    \"\"\"Test POST /api/pools creates pool and PoolMPT.\"\"\"\n    response = client.post(\n        \"/api/pools\",\n        json={\n            \"amount\": 1000,\n            \"interest_rate\": 5,\n            \"min_loan\": 100,\n            \"duration\": 30\n        }\n    )\n    \n    assert response.status_code == 200\n    data = response.json()\n    assert 'pool_address' in data\n    assert 'tx_hash' in data\n    assert 'explorer_url' in data\n    print(f\"Pool created: {data['pool_address']}\")\n    print(f\"Explorer: {data['explorer_url']}\")\n\ndef test_get_pools():\n    \"\"\"Test GET /api/pools returns pools list.\"\"\"\n    response = client.get(\"/api/pools\")\n    assert response.status_code == 200\n    pools = response.json()\n    assert isinstance(pools, list)\n\ndef test_create_application():\n    \"\"\"Test POST /api/applications creates ApplicationMPT.\"\"\"\n    # First create a pool\n    pool_response = client.post(\n        \"/api/pools\",\n        json={\"amount\": 1000, \"interest_rate\": 5}\n    )\n    pool_id = pool_response.json()['pool_address']\n    \n    # Create application\n    response = client.post(\n        \"/api/applications\",\n        json={\n            \"pool_address\": pool_id,\n            \"principal\": 500\n        }\n    )\n    \n    assert response.status_code == 200\n    data = response.json()\n    assert 'application_id' in data\n    assert 'tx_hash' in data\n    print(f\"Application created: {data['application_id']}\")\n\ndef test_signup_endpoint():\n    \"\"\"Test POST /api/auth/signup creates user with DID.\"\"\"\n    response = client.post(\"/api/auth/signup\", json={})\n    \n    assert response.status_code == 200\n    data = response.json()\n    assert 'address' in data\n    assert 'did' in data\n    assert 'seed' in data\n    assert data['did'].startswith('did:xrpl:1:')\n    print(f\"User created: {data['address']}\")\n    print(f\"DID: {data['did']}\")\n\nif __name__ == '__main__':\n    pytest.main([__file__, '-v', '-s'])\n"
+          },
+          {
+            "step": 3,
+            "action": "Create test data generator script",
+            "path": "backend/tests/generate_test_data.py",
+            "full_content": "#!/usr/bin/env python3\n\"\"\"Generate test data for MVP demo.\"\"\"\nimport sys\nsys.path.insert(0, '/home/users/duynguy/proj/calhacks')\n\nfrom xrpl.wallet import Wallet\nfrom backend.xrpl_client.client import connect\nfrom backend.services.mpt_service import create_pool_mpt\nfrom backend.services.did_service import create_did_for_user\nfrom backend.models.mpt_schemas import PoolMPTMetadata\n\ndef generate_demo_data():\n    \"\"\"Generate pools, users, and applications for demo.\"\"\"\n    client = connect('testnet')\n    \n    print(\"Generating demo data...\\n\")\n    \n    # Create 3 lenders with pools\n    for i in range(3):\n        wallet = Wallet.create()\n        did = create_did_for_user(wallet, network='testnet', update_database=False)\n        \n        metadata = PoolMPTMetadata(\n            issuerAddr=wallet.address,\n            totalBalance=float((i+1) * 5000),\n            currentBalance=float((i+1) * 5000),\n            minimumLoan=100.0,\n            duration=30 * (i+1),\n            interestRate=5.0 + i\n        )\n        \n        result = create_pool_mpt(client, wallet, metadata)\n        \n        print(f\"Lender {i+1}:\")\n        print(f\"  Address: {wallet.address}\")\n        print(f\"  Seed: {wallet.seed}\")\n        print(f\"  DID: {did}\")\n        print(f\"  Pool: {result['mpt_id']}\")\n        print(f\"  Amount: ${metadata.totalBalance}\")\n        print(f\"  Rate: {metadata.interestRate}%\")\n        print(f\"  Explorer: https://testnet.xrpl.org/transactions/{result['tx_hash']}\")\n        print()\n    \n    # Create 2 borrowers\n    print(\"\\nBorrowers:\")\n    for i in range(2):\n        wallet = Wallet.create()\n        did = create_did_for_user(wallet, network='testnet', update_database=False)\n        \n        print(f\"Borrower {i+1}:\")\n        print(f\"  Address: {wallet.address}\")\n        print(f\"  Seed: {wallet.seed}\")\n        print(f\"  DID: {did}\")\n        print()\n    \n    client.close()\n    print(\"\\n✅ Demo data generated!\")\n    print(\"\\nSave these seeds to use in the demo.\")\n\nif __name__ == '__main__':\n    generate_demo_data()\n"
+          },
+          {
+            "step": 4,
+            "action": "Create demo test script",
+            "path": "test_mvp_demo.sh",
+            "full_content": "#!/bin/bash\n# MVP Demo Test Script\n\necho \"=== LendX MVP Demo Test ===\"\necho \"\"\n\n# Colors\nGREEN='\\033[0;32m'\nRED='\\033[0;31m'\nNC='\\033[0m' # No Color\n\n# Test 1: Backend running\necho \"Test 1: Backend server...\"\nif curl -s http://localhost:8000/health > /dev/null 2>&1; then\n    echo -e \"${GREEN}✅ Backend is running${NC}\"\nelse\n    echo -e \"${RED}❌ Backend not running. Start with: uvicorn backend.api.main:app --reload${NC}\"\n    exit 1\nfi\n\n# Test 2: Frontend running\necho \"Test 2: Frontend server...\"\nif curl -s http://localhost:3000 > /dev/null 2>&1; then\n    echo -e \"${GREEN}✅ Frontend is running${NC}\"\nelse\n    echo -e \"${RED}❌ Frontend not running. Start with: cd frontend && npm run dev${NC}\"\n    exit 1\nfi\n\n# Test 3: Database connection\necho \"Test 3: Database connection...\"\nif PYTHONPATH=/home/users/duynguy/proj/calhacks python3 -c \"from backend.config.database import get_db_session; get_db_session()\" > /dev/null 2>&1; then\n    echo -e \"${GREEN}✅ Database connected${NC}\"\nelse\n    echo -e \"${RED}❌ Database connection failed${NC}\"\n    exit 1\nfi\n\n# Test 4: Create pool\necho \"Test 4: Create pool (PoolMPT)...\"\nRESPONSE=$(curl -s -X POST http://localhost:8000/api/pools \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"amount\":1000,\"interest_rate\":5,\"min_loan\":100,\"duration\":30}')\n\nif echo $RESPONSE | grep -q \"pool_address\"; then\n    POOL_ID=$(echo $RESPONSE | grep -o '\"pool_address\":\"[^\"]*' | cut -d'\"' -f4)\n    TX_HASH=$(echo $RESPONSE | grep -o '\"tx_hash\":\"[^\"]*' | cut -d'\"' -f4)\n    echo -e \"${GREEN}✅ Pool created: $POOL_ID${NC}\"\n    echo \"   Explorer: https://testnet.xrpl.org/transactions/$TX_HASH\"\nelse\n    echo -e \"${RED}❌ Pool creation failed${NC}\"\n    exit 1\nfi\n\n# Test 5: Create application\necho \"Test 5: Create application (ApplicationMPT)...\"\nRESPONSE=$(curl -s -X POST http://localhost:8000/api/applications \\\n  -H \"Content-Type: application/json\" \\\n  -d \"{\\\"pool_address\\\":\\\"$POOL_ID\\\",\\\"principal\\\":500}\")\n\nif echo $RESPONSE | grep -q \"application_id\"; then\n    APP_ID=$(echo $RESPONSE | grep -o '\"application_id\":\"[^\"]*' | cut -d'\"' -f4)\n    TX_HASH=$(echo $RESPONSE | grep -o '\"tx_hash\":\"[^\"]*' | cut -d'\"' -f4)\n    echo -e \"${GREEN}✅ Application created: $APP_ID${NC}\"\n    echo \"   Explorer: https://testnet.xrpl.org/transactions/$TX_HASH\"\nelse\n    echo -e \"${RED}❌ Application creation failed${NC}\"\n    exit 1\nfi\n\n# Test 6: Approve application\necho \"Test 6: Approve application (LoanMPT)...\"\nRESPONSE=$(curl -s -X PUT http://localhost:8000/api/applications/$APP_ID/approve)\n\nif echo $RESPONSE | grep -q \"loan_id\"; then\n    LOAN_ID=$(echo $RESPONSE | grep -o '\"loan_id\":\"[^\"]*' | cut -d'\"' -f4)\n    TX_HASH=$(echo $RESPONSE | grep -o '\"loan_tx_hash\":\"[^\"]*' | cut -d'\"' -f4)\n    echo -e \"${GREEN}✅ Loan created: $LOAN_ID${NC}\"\n    echo \"   Explorer: https://testnet.xrpl.org/transactions/$TX_HASH\"\nelse\n    echo -e \"${RED}❌ Loan creation failed${NC}\"\n    exit 1\nfi\n\necho \"\"\necho \"=== 🎉 MVP DEMO SUCCESS ===\"\necho \"All 3 MPTs created on XRPL testnet:\"\necho \"  1. Pool: $POOL_ID\"\necho \"  2. Application: $APP_ID\"\necho \"  3. Loan: $LOAN_ID\"\necho \"\"\necho \"Verify at: https://testnet.xrpl.org/\"\n",
+            "make_executable": true
+          }
+        ],
+
+        "acceptance_criteria": [
+          "E2E test creates all 3 MPTs successfully",
+          "API integration tests pass",
+          "Demo script tests complete flow",
+          "Test data generator creates sample data",
+          "All tests include XRPL verification",
+          "Tests can run independently"
+        ],
+
+        "testing": {
+          "run_e2e_test": "PYTHONPATH=/home/users/duynguy/proj/calhacks pytest backend/tests/test_e2e_mvp.py -v -s",
+          "run_api_tests": "pytest backend/tests/test_api_integration.py -v",
+          "run_demo_script": "bash test_mvp_demo.sh",
+          "generate_data": "python3 backend/tests/generate_test_data.py"
+        },
+
+        "documentation": [
+          {
+            "topic": "Pytest",
+            "url": "https://docs.pytest.org/",
+            "section": "Getting Started"
+          },
+          {
+            "topic": "FastAPI Testing",
+            "url": "https://fastapi.tiangolo.com/tutorial/testing/",
+            "section": "TestClient"
+          }
+        ],
+
+        "dependencies": ["be-3", "be-4", "be-5"],
+        "blockers": []
+      }
+    }
+  },
+
+  "demo_readiness": {
+    "checklist": [
+      "[ ] All 10 agents complete their tasks",
+      "[ ] Backend server runs without errors",
+      "[ ] Frontend compiles and runs",
+      "[ ] Database has test data",
+      "[ ] Can create pool → visible in XRPL explorer",
+      "[ ] Can apply for loan → visible in XRPL explorer",
+      "[ ] Can approve loan → visible in XRPL explorer",
+      "[ ] All 3 MPTs verified on testnet.xrpl.org",
+      "[ ] DID creation works",
+      "[ ] Demo script passes end-to-end"
+    ],
+
+    "demo_url": "http://localhost:3000",
+    "api_url": "http://localhost:8000",
+    "explorer_url": "https://testnet.xrpl.org/",
+
+    "test_commands": {
+      "backend": "uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000",
+      "frontend": "cd frontend && npm run dev",
+      "run_tests": "pytest backend/tests/ -v",
+      "demo_script": "bash test_mvp_demo.sh"
+    }
+  },
+
+  "notes": "All tasks are granular enough for independent agent execution. Each task includes exact file paths, code examples, acceptance criteria, and documentation links. No task blocks another - all 10 can run in parallel."
+}

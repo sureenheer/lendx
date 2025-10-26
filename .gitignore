@@ -410,5 +410,4 @@ temp/
 *.bak
 *.backup
 doc/*
-.autonomous/*
 CLAUDE.md

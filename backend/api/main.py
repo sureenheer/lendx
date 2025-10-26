@@ -26,10 +26,22 @@ from ..xrpl_client import (
 )
 from ..config.database import get_db, init_db, check_db_connection
 from ..models.database import User, Pool, Application, Loan, UserMPTBalance
+from ..services.mpt_service import create_pool_mpt, create_application_mpt, create_loan_mpt
+from ..models.mpt_schemas import PoolMPTMetadata, ApplicationMPTMetadata, LoanMPTMetadata
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize XRPL client for testnet
+xrpl_client = None
+
+def get_xrpl_client():
+    """Get or create XRPL client connection."""
+    global xrpl_client
+    if xrpl_client is None:
+        xrpl_client = connect('testnet')
+    return xrpl_client
 
 app = FastAPI(
     title="LendX API",
@@ -45,6 +57,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Import and register routers
+from .auth import router as auth_router
+
+app.include_router(auth_router)
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -106,7 +123,7 @@ async def root():
 
 @app.post("/pools")
 async def create_lending_pool(pool_data: LendingPoolCreate, db: Session = Depends(get_db)):
-    """Create a new lending pool."""
+    """Create a new lending pool with MPT on XRPL."""
     try:
         # Verify lender exists
         lender = db.query(User).filter_by(address=pool_data.lender_address).first()
@@ -117,14 +134,38 @@ async def create_lending_pool(pool_data: LendingPoolCreate, db: Session = Depend
             db.flush()
 
         # Create pool on XRPL (MPT issuance)
-        # For now, generate a unique pool_address (in production, this would be from XRPL)
-        pool_address = f"MPT_{pool_data.lender_address}_{int(datetime.now().timestamp())}"
-        tx_hash = f"TX_POOL_{int(datetime.now().timestamp())}"
+        # For MVP demo: generate a wallet (in production, use user's wallet from frontend)
+        from xrpl.wallet import Wallet
+        lender_wallet = Wallet.create()
+        logger.info(f"Generated demo wallet for pool creation: {lender_wallet.classic_address}")
+        
+        # Create MPT metadata
+        pool_metadata = PoolMPTMetadata(
+            issuer_addr=lender_wallet.classic_address,
+            total_balance=Decimal(str(pool_data.amount)),
+            current_balance=Decimal(str(pool_data.amount)),
+            minimum_loan=Decimal(str(pool_data.min_loan_amount)),
+            duration=pool_data.max_term_days,
+            interest_rate=Decimal(str(pool_data.interest_rate))
+        )
+        
+        # Create MPT on XRPL
+        client = get_xrpl_client()
+        mpt_result = create_pool_mpt(
+            client=client,
+            issuer_wallet=lender_wallet,
+            metadata=pool_metadata
+        )
+        
+        pool_address = mpt_result['mpt_id']
+        tx_hash = mpt_result.get('tx_hash', f"TX_POOL_{int(datetime.now().timestamp())}")
+        
+        logger.info(f"Created PoolMPT on XRPL: {pool_address}")
 
         # Create pool in database
         pool = Pool(
             pool_address=pool_address,
-            issuer_address=pool_data.lender_address,
+            issuer_address=lender_wallet.classic_address,
             total_balance=Decimal(str(pool_data.amount)),
             current_balance=Decimal(str(pool_data.amount)),
             minimum_loan=Decimal(str(pool_data.min_loan_amount)),
@@ -137,8 +178,16 @@ async def create_lending_pool(pool_data: LendingPoolCreate, db: Session = Depend
         db.commit()
         db.refresh(pool)
 
-        logger.info(f"Created pool {pool_address} for lender {pool_data.lender_address}")
-        return {"pool_id": pool_address, "message": "Lending pool created successfully"}
+        logger.info(f"Created pool {pool_address} for lender {lender_wallet.classic_address}")
+        return {
+            "pool_id": pool_address,
+            "pool_address": pool_address,
+            "tx_hash": tx_hash,
+            "explorer_url": f"https://testnet.xrpl.org/transactions/{tx_hash}",
+            "wallet_address": lender_wallet.classic_address,
+            "wallet_seed": lender_wallet.seed,  # WARNING: Only for demo!
+            "message": "Pool created on XRPL testnet. Verify at explorer_url"
+        }
 
     except IntegrityError as e:
         db.rollback()
@@ -176,7 +225,7 @@ async def get_lending_pool(pool_id: str, db: Session = Depends(get_db)):
 
 @app.post("/loans/apply")
 async def apply_for_loan(application: LoanApplication, db: Session = Depends(get_db)):
-    """Apply for a loan from a lending pool."""
+    """Apply for a loan from a lending pool with ApplicationMPT on XRPL."""
     try:
         # Verify pool exists
         pool = db.query(Pool).filter_by(pool_address=application.pool_id).first()
@@ -194,16 +243,42 @@ async def apply_for_loan(application: LoanApplication, db: Session = Depends(get
             db.add(borrower)
             db.flush()
 
-        # Create application
-        application_address = f"APP_{application.borrower_address}_{int(datetime.now().timestamp())}"
-        tx_hash = f"TX_APP_{int(datetime.now().timestamp())}"
-
+        # Create ApplicationMPT on XRPL
+        # For MVP demo: generate a wallet (in production, use user's wallet from frontend)
+        from xrpl.wallet import Wallet
+        borrower_wallet = Wallet.create()
+        logger.info(f"Generated demo wallet for application: {borrower_wallet.classic_address}")
+        
         # Calculate interest
-        interest = Decimal(str(application.amount)) * Decimal(str(application.offered_rate)) / Decimal("100")
+        interest = Decimal(str(application.amount)) * pool.interest_rate / Decimal("100")
+        
+        # Create ApplicationMPT metadata
+        app_metadata = ApplicationMPTMetadata(
+            borrower_addr=borrower_wallet.classic_address,
+            pool_addr=pool.pool_address,
+            application_date=datetime.now(),
+            dissolution_date=datetime.now() + timedelta(days=application.term_days),
+            state="PENDING",
+            principal=Decimal(str(application.amount)),
+            interest=interest
+        )
+        
+        # Create MPT on XRPL
+        client = get_xrpl_client()
+        mpt_result = create_application_mpt(
+            client=client,
+            borrower_wallet=borrower_wallet,
+            metadata=app_metadata
+        )
+        
+        application_address = mpt_result['mpt_id']
+        tx_hash = mpt_result.get('tx_hash', f"TX_APP_{int(datetime.now().timestamp())}")
+        
+        logger.info(f"Created ApplicationMPT on XRPL: {application_address}")
 
         app = Application(
             application_address=application_address,
-            borrower_address=application.borrower_address,
+            borrower_address=borrower_wallet.classic_address,
             pool_address=application.pool_id,
             application_date=datetime.now(),
             dissolution_date=datetime.now() + timedelta(days=application.term_days),
@@ -218,7 +293,15 @@ async def apply_for_loan(application: LoanApplication, db: Session = Depends(get
         db.refresh(app)
 
         logger.info(f"Created loan application {application_address}")
-        return {"loan_id": application_address, "message": "Loan application submitted successfully"}
+        return {
+            "loan_id": application_address,
+            "application_address": application_address,
+            "tx_hash": tx_hash,
+            "explorer_url": f"https://testnet.xrpl.org/transactions/{tx_hash}",
+            "wallet_address": borrower_wallet.classic_address,
+            "wallet_seed": borrower_wallet.seed,  # WARNING: Only for demo!
+            "message": "Application submitted on XRPL testnet"
+        }
 
     except HTTPException:
         raise
@@ -249,7 +332,7 @@ async def get_loan_applications(pool_id: Optional[str] = None, db: Session = Dep
 
 @app.post("/loans/{loan_id}/approve")
 async def approve_loan(loan_id: str, approval: LoanApproval, db: Session = Depends(get_db)):
-    """Approve or reject a loan application."""
+    """Approve or reject a loan application with LoanMPT creation on XRPL."""
     try:
         # Get application
         app = db.query(Application).filter_by(application_address=loan_id).first()
@@ -262,21 +345,52 @@ async def approve_loan(loan_id: str, approval: LoanApproval, db: Session = Depen
             raise HTTPException(status_code=404, detail="Pool not found")
 
         if approval.approved:
+            # Verify application is in PENDING state
+            if app.state != "PENDING":
+                raise HTTPException(status_code=400, detail=f"Application not in PENDING state (current: {app.state})")
+            
             # Update application state
             app.state = "APPROVED"
 
             # Update pool balance
             pool.current_balance -= app.principal
 
-            # Create loan
-            loan_address = f"LOAN_{app.borrower_address}_{int(datetime.now().timestamp())}"
-            tx_hash = f"TX_LOAN_{int(datetime.now().timestamp())}"
+            # Create LoanMPT on XRPL
+            # For MVP demo: generate a wallet (in production, use lender's wallet from frontend)
+            from xrpl.wallet import Wallet
+            lender_wallet = Wallet.create()
+            logger.info(f"Generated demo wallet for loan: {lender_wallet.classic_address}")
+            
+            # Create LoanMPT metadata
+            loan_metadata = LoanMPTMetadata(
+                pool_addr=app.pool_address,
+                borrower_addr=app.borrower_address,
+                lender_addr=lender_wallet.classic_address,
+                start_date=datetime.now(),
+                end_date=datetime.now() + timedelta(days=pool.duration_days),
+                principal=app.principal,
+                interest=app.interest,
+                state="ONGOING"
+            )
+            
+            # Create MPT on XRPL
+            client = get_xrpl_client()
+            mpt_result = create_loan_mpt(
+                client=client,
+                lender_wallet=lender_wallet,
+                metadata=loan_metadata
+            )
+            
+            loan_address = mpt_result['mpt_id']
+            tx_hash = mpt_result.get('tx_hash', f"TX_LOAN_{int(datetime.now().timestamp())}")
+            
+            logger.info(f"Created LoanMPT on XRPL: {loan_address}")
 
             loan = Loan(
                 loan_address=loan_address,
                 pool_address=app.pool_address,
                 borrower_address=app.borrower_address,
-                lender_address=approval.lender_address,
+                lender_address=lender_wallet.classic_address,
                 start_date=datetime.now(),
                 end_date=datetime.now() + timedelta(days=pool.duration_days),
                 principal=app.principal,
@@ -289,7 +403,17 @@ async def approve_loan(loan_id: str, approval: LoanApproval, db: Session = Depen
             db.commit()
 
             logger.info(f"Approved loan application {loan_id}, created loan {loan_address}")
-            return {"message": "Loan approved successfully", "loan_id": loan_address}
+            return {
+                "message": "Loan approved successfully, LoanMPT created",
+                "loan_id": loan_address,
+                "loan_address": loan_address,
+                "application_tx_hash": app.tx_hash,
+                "loan_tx_hash": tx_hash,
+                "loan_explorer_url": f"https://testnet.xrpl.org/transactions/{tx_hash}",
+                "application_explorer_url": f"https://testnet.xrpl.org/transactions/{app.tx_hash}",
+                "wallet_address": lender_wallet.classic_address,
+                "wallet_seed": lender_wallet.seed  # WARNING: Only for demo!
+            }
         else:
             # Reject application
             app.state = "REJECTED"

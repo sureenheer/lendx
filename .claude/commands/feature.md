@@ -3,7 +3,7 @@ Start feature: $ARGUMENTS
 **Autonomous Workflow Protocol:**
 
 1. **Check current state:**
-   - Read `doc/.autonomous/state.json`
+   - Read `.autonomous/state.json`
    - If status is not IDLE, report conflict
 
 2. **Planning phase (if IDLE):**
