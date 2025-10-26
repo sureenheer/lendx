@@ -27,6 +27,17 @@ from .mpt import (
     burn_from_holder,
     destroy_issuance
 )
+from .escrow import (
+    create_deposit_escrow,
+    create_settlement_escrow,
+    finish_escrow,
+    cancel_escrow
+)
+from .multisig import (
+    setup_multisig_account,
+    create_multisig_tx,
+    submit_multisigned
+)
 
 __all__ = [
     # Client functions
@@ -42,6 +53,17 @@ __all__ = [
     'mint_to_holder',
     'burn_from_holder',
     'destroy_issuance',
+
+    # Escrow functions
+    'create_deposit_escrow',
+    'create_settlement_escrow',
+    'finish_escrow',
+    'cancel_escrow',
+
+    # Multisig functions
+    'setup_multisig_account',
+    'create_multisig_tx',
+    'submit_multisigned',
 
     # Configuration
     'TESTNET_URL',
