@@ -19,6 +19,14 @@ from .exceptions import (
     ConnectionError,
     wrap_xrpl_exception
 )
+from .mpt import (
+    create_issuance,
+    authorize_holder,
+    get_mpt_balance,
+    mint_to_holder,
+    burn_from_holder,
+    destroy_issuance
+)
 
 __all__ = [
     # Client functions
@@ -26,6 +34,14 @@ __all__ = [
     'submit_and_wait',
     'subscribe_account',
     'AccountSubscription',
+
+    # MPT functions
+    'create_issuance',
+    'authorize_holder',
+    'get_mpt_balance',
+    'mint_to_holder',
+    'burn_from_holder',
+    'destroy_issuance',
 
     # Configuration
     'TESTNET_URL',
