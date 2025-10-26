@@ -137,7 +137,9 @@ export function DashboardSidebar({ className, ...props }: DashboardSidebarProps)
                 <Button
                   onClick={() => {
                     console.log("[v0] Button clicked in sidebar")
-                    handleNextAction()
+                    if (handleNextAction) {
+                      handleNextAction()
+                    }
                   }}
                   size="lg"
                   className="w-full shadow-lg border-2 border-primary/30"
