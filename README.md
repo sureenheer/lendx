@@ -6,18 +6,42 @@ A decentralized lending marketplace built on XRPL (XRP Ledger) with verifiable c
 
 - **Decentralized Lending**: Create lending pools and apply for loans
 - **Dual Role Interface**: Switch between lender and borrower views
-- **XRPL Integration**: Native XRP Ledger blockchain integration
+- **XRPL Integration**: Native XRP Ledger blockchain integration with MPT (Multi-Purpose Token) support
 - **Verifiable Credentials**: DID-based identity and trust system
-- **Xumm Wallet Support**: Secure wallet connection and transaction signing
-- **Real-time Dashboard**: Professional financial interface with dark theme
+- **Xumm Wallet Support**: Secure wallet connection and transaction signing with JWT OAuth
+- **Auth0 Integration**: Enterprise-grade authentication and authorization
+- **Real-time Dashboard**: Professional financial interface with dark theme (Next.js 14 + React 19)
 - **Escrow Automation**: Smart contract-like escrow for loan security
 - **Multi-signature Support**: Enterprise-grade security features
+- **Dual Backend Architecture**: Python FastAPI for blockchain operations + Express.js for authentication
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **Framework**: Next.js 14 with React 19
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4 + PostCSS
+- **UI Components**: Shadcn/ui with Radix UI
+- **State Management**: Zustand
+- **Form Handling**: React Hook Form + Zod validation
+- **Authentication**: Auth0 (@auth0/nextjs-auth0)
+- **XRPL Integration**: xrpl SDK + Xumm SDK
+
+### Backend
+- **Python FastAPI**: Primary backend for lending logic and XRPL operations
+  - Database: SQLAlchemy ORM + PostgreSQL (Supabase)
+  - XRPL Client: xrpl-py library
+  - Services: DID, MPT, Xumm integration
+- **Express.js**: Authentication and identity management
+  - Auth0 JWT authentication
+  - DID operations
+  - Port: 3001
 
 ## 📁 Project Structure
 
 ```
 lendx/
-├── frontend/                # Next.js 14 LendX application
+├── frontend/                # Next.js 14 LendX application (PRIMARY UI)
 │   ├── app/                # App router pages
 │   │   ├── (auth)/         # Authentication flow
 │   │   └── (dashboard)/    # Main dashboard
@@ -27,11 +51,29 @@ lendx/
 │   │   └── dashboard/     # Dashboard widgets
 │   ├── lib/               # Utilities
 │   │   └── xrpl/         # XRPL integration layer
-│   └── package.json
-├── backend/               # Python FastAPI services
+│   ├── hooks/             # React hooks
+│   └── package.json       # Next.js dependencies
+├── @backend/              # Express.js Node backend
+│   └── src/
+│       ├── index.ts       # Express server (port 3001)
+│       ├── auth/          # Auth0 JWT authentication
+│       ├── routes/        # API routes (auth, DID)
+│       └── services/      # Business logic
+├── backend/               # Python FastAPI services (PRIMARY BACKEND)
+│   ├── api/              # FastAPI endpoints
+│   │   ├── main.py       # Main application
+│   │   ├── auth.py       # Authentication
+│   │   └── xumm.py       # Xumm wallet integration
 │   ├── xrpl_client/      # XRPL client library
-│   ├── graph/           # Settlement algorithms
-│   └── services/        # Business logic
+│   ├── services/         # Business logic
+│   │   ├── did_service.py    # Decentralized identity
+│   │   ├── mpt_service.py    # Multi-Purpose Token
+│   │   └── xumm_service.py   # Xumm integration
+│   ├── models/           # Database models
+│   ├── config/           # Configuration & database
+│   ├── migrations/       # Database migrations
+│   └── tests/            # Test suite
+├── client/                # Vite app (experimental/untracked)
 ├── pyproject.toml        # Python dependencies
 └── README.md
 ```
@@ -42,8 +84,8 @@ lendx/
 
 ```bash
 # Clone the repository
-git clone https://github.com/sureenheer/lendx.git
-cd lendx
+git clone https://github.com/sureenheer/calhacks.git
+cd calhacks
 
 # Navigate to frontend
 cd frontend
@@ -52,14 +94,15 @@ cd frontend
 npm install --legacy-peer-deps
 
 # Create environment file
-cp .env.example .env.local
-# Add your Xumm API credentials
+cp .env.local.example .env.local
+# Add your Xumm API credentials and Auth0 configuration
 
 # Start development server
 npm run dev
+# Frontend runs on http://localhost:3000
 ```
 
-### Backend (Python)
+### Backend (Python FastAPI)
 
 ```bash
 # From project root
@@ -69,8 +112,27 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e .
 
-# Start FastAPI server (when implemented)
-uvicorn backend.api.main:app --reload
+# Configure database (create .env in backend/)
+# Add DATABASE_URL, SUPABASE_URL, SUPABASE_KEY
+
+# Start FastAPI server
+uvicorn backend.api.main:app --reload --port 8000
+```
+
+### Backend (Express.js)
+
+```bash
+# Navigate to @backend directory
+cd @backend
+
+# Install dependencies
+npm install
+
+# Configure Auth0 (create .env)
+# Add AUTH0_DOMAIN, AUTH0_AUDIENCE, etc.
+
+# Start Express server
+npm run dev  # Runs on port 3001
 ```
 
 ## 📖 Usage
@@ -141,15 +203,49 @@ tx_hash = finish_escrow(client, wallet, owner_address, sequence)
 
 ### Environment Variables
 
-Create a `.env` file in the root directory:
-
+**Frontend** (`frontend/.env.local`):
 ```env
+# Auth0 Configuration
+AUTH0_SECRET=your_auth0_secret
+AUTH0_BASE_URL=http://localhost:3000
+AUTH0_ISSUER_BASE_URL=https://your-domain.auth0.com
+AUTH0_CLIENT_ID=your_client_id
+AUTH0_CLIENT_SECRET=your_client_secret
+
+# Xumm Wallet
+NEXT_PUBLIC_XUMM_API_KEY=your_xumm_api_key
+
+# Backend URLs
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_AUTH_API_URL=http://localhost:3001
+```
+
+**Python Backend** (`backend/.env`):
+```env
+# Database (Supabase/PostgreSQL)
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_key
+
 # XRPL Network
 XRPL_NETWORK=testnet  # or mainnet
 
-# Xaman Wallet (for frontend)
-VITE_XAMAN_API_KEY=your_api_key
-VITE_XAMAN_API_SECRET=your_api_secret
+# Xumm Integration
+XUMM_API_KEY=your_xumm_api_key
+XUMM_API_SECRET=your_xumm_api_secret
+```
+
+**Express Backend** (`@backend/.env`):
+```env
+# Auth0 Configuration
+AUTH0_DOMAIN=your-domain.auth0.com
+AUTH0_AUDIENCE=your_api_audience
+AUTH0_CLIENT_ID=your_client_id
+AUTH0_CLIENT_SECRET=your_client_secret
+
+# Server
+PORT=3001
+NODE_ENV=development
 ```
 
 ## 🧪 Testing
@@ -159,11 +255,11 @@ VITE_XAMAN_API_SECRET=your_api_secret
 pytest
 
 # Run frontend tests
-cd client
+cd frontend
 npm test
 
 # Lint code
-cd client && npm run lint
+cd frontend && npm run lint
 ```
 
 ## 📚 Documentation
