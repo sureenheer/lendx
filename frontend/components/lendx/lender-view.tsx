@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useDemoContext } from "@/lib/demo-context"
-import { useWallet, createLendingPool, createLoanEscrow, type LendingPoolTransaction, type LoanTransaction } from "@/lib/xrpl"
+import { useWallet, createLendingPool, createDirectLoan, type LendingPoolTransaction, type LoanTransaction } from "@/lib/xrpl"
 
 type LenderStep = "empty" | "pool-created" | "funded" | "loan-request" | "loan-approved"
 
@@ -164,7 +164,7 @@ export default function LenderView() {
     try {
       setIsApprovingLoan(true)
 
-      // Create loan escrow transaction
+      // Create direct loan transaction
       const loanData: LoanTransaction = {
         amount: "100000000", // $100 in drops
         borrower: "rAmara...", // This would be the actual borrower address
@@ -173,13 +173,13 @@ export default function LenderView() {
         termDays: parseInt(maxLoanTerm),
       }
 
-      // Create escrow for the loan
-      const escrowSequence = await createLoanEscrow(loanData)
+      // Create direct loan payment to borrower
+      const txHash = await createDirectLoan(loanData)
 
       setLenderStep("loan-approved")
       if (onNotificationAdd) {
         onNotificationAdd({
-          message: `You have approved a $100 loan to Amara K. Escrow sequence: ${escrowSequence}`,
+          message: `You have approved a $100 loan to Amara K. Transaction: ${txHash}`,
           type: "success",
         })
       }

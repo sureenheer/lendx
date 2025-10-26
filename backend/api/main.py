@@ -1,315 +1,222 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Dict, List
-import uuid
-import time
+"""FastAPI backend for LendX application."""
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Dict, List, Optional
+import uvicorn
+import time
 
-from ..graph.types import Edge, Graph
-from ..services.iou import IOUService
-from ..services.settlement import SettlementService
-from ..xrpl_client.mpt import MPTService
-from ..xrpl_client.multisig import MultisigService
-from ..xrpl_client.escrow import EscrowService
+from ..xrpl_client import (
+    connect,
+    submit_and_wait,
+    create_issuance,
+    mint_to_holder,
+    get_mpt_balance,
+)
 
+app = FastAPI(
+    title="LendX API",
+    description="Backend API for LendX decentralized lending platform",
+    version="1.0.0",
+)
 
-@dataclass
-class Group:
-    group_id: str
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Pydantic models for API requests/responses
+class LendingPoolCreate(BaseModel):
     name: str
-    deposit_xrp: float
-    threshold: int
-    signers: list[str]
-    issuance_id: str | None = None
-    multisig_address: str | None = None
-    created_at: float = 0.0
-
-
-@dataclass
-class SettlementProposal:
-    proposal_id: str
-    group_id: str
-    transactions: list[dict]
-    signatures: dict[str, str]
-    status: str
-    created_at: float
-
-
-app = FastAPI(title="Group Settlement API", version="1.0.0")
-
-# In-memory storage (replace with database in production)
-groups: dict[str, Group] = {}
-settlement_proposals: dict[str, SettlementProposal] = {}
-
-# Services
-iou_service = IOUService()
-settlement_service = SettlementService()
-mpt_service = MPTService()
-multisig_service = MultisigService()
-escrow_service = EscrowService()
-
-
-@app.post("/groups")
-async def create_group(
-    name: str, 
-    deposit_xrp: float, 
-    threshold: int, 
-    signers: list[str]
-) -> dict:
-    """Create MPT, multisig account. Return {group_id, issuance_id}"""
-    group_id = str(uuid.uuid4())
-    
-    try:
-        # Create multisig account
-        multisig_address = await multisig_service.create_multisig_account(
-            signers=signers,
-            threshold=threshold
-        )
-        
-        # Create MPT (Multi-Purpose Token) for the group
-        issuance_id = await mpt_service.create_mpt(
-            issuer=multisig_address,
-            group_id=group_id
-        )
-        
-        # Store group information
-        group = Group(
-            group_id=group_id,
-            name=name,
-            deposit_xrp=deposit_xrp,
-            threshold=threshold,
-            signers=signers,
-            issuance_id=issuance_id,
-            multisig_address=multisig_address,
-            created_at=time.time()
-        )
-        groups[group_id] = group
-        
-        return {
-            "group_id": group_id,
-            "issuance_id": issuance_id,
-            "multisig_address": multisig_address
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create group: {str(e)}")
-
-
-@app.post("/groups/{group_id}/join")
-async def join_group(
-    group_id: str,
-    member_address: str,
-    escrow_tx_hash: str
-) -> dict:
-    """Verify escrow, authorize MPT holder. Return {status, member_address}"""
-    if group_id not in groups:
-        raise HTTPException(status_code=404, detail="Group not found")
-    
-    group = groups[group_id]
-    
-    try:
-        # Verify escrow transaction
-        escrow_valid = await escrow_service.verify_escrow(
-            tx_hash=escrow_tx_hash,
-            expected_amount=group.deposit_xrp,
-            destination=group.multisig_address
-        )
-        
-        if not escrow_valid:
-            raise HTTPException(status_code=400, detail="Invalid escrow transaction")
-        
-        # Authorize MPT holder
-        await mpt_service.authorize_holder(
-            issuance_id=group.issuance_id,
-            holder_address=member_address
-        )
-        
-        return {
-            "status": "success",
-            "member_address": member_address,
-            "group_id": group_id
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to join group: {str(e)}")
-
-
-@app.get("/groups/{group_id}")
-async def get_group(group_id: str) -> Group:
-    """Return group details"""
-    if group_id not in groups:
-        raise HTTPException(status_code=404, detail="Group not found")
-    
-    return groups[group_id]
-
-
-@app.get("/groups/{group_id}/balances")
-async def get_balances(group_id: str) -> dict[str, float]:
-    """Return address -> net balance"""
-    if group_id not in groups:
-        raise HTTPException(status_code=404, detail="Group not found")
-    
-    try:
-        # Get current graph state for the group
-        graph = await iou_service.get_graph(group_id)
-        
-        # Calculate net balances
-        balances = iou_service.calculate_net_balances(graph)
-        
-        return balances
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get balances: {str(e)}")
-
-
-@app.post("/groups/{group_id}/iou")
-async def add_iou_endpoint(
-    group_id: str,
-    debtor: str,
-    creditor: str,
     amount: float
-) -> dict[str, float]:
-    """Add IOU, return updated nets"""
-    if group_id not in groups:
-        raise HTTPException(status_code=404, detail="Group not found")
-    
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive")
-    
-    try:
-        # Add IOU to the system
-        updated_balances = await iou_service.add_iou(
-            group_id=group_id,
-            debtor=debtor,
-            creditor=creditor,
-            amount=amount
-        )
-        
-        return updated_balances
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to add IOU: {str(e)}")
+    interest_rate: float
+    max_term_days: int
+    min_loan_amount: float
+    lender_address: str
 
+class LoanApplication(BaseModel):
+    pool_id: str
+    amount: float
+    purpose: str
+    term_days: int
+    borrower_address: str
+    offered_rate: float
 
-@app.post("/groups/{group_id}/settlements")
-async def propose_settlement_endpoint(
-    group_id: str
-) -> SettlementProposal:
-    """Create proposal with unsigned txs"""
-    if group_id not in groups:
-        raise HTTPException(status_code=404, detail="Group not found")
-    
-    group = groups[group_id]
-    proposal_id = str(uuid.uuid4())
-    
-    try:
-        # Generate settlement transactions
-        settlement_txs = await settlement_service.generate_settlement_transactions(
-            group_id=group_id,
-            multisig_address=group.multisig_address
-        )
-        
-        # Create settlement proposal
-        proposal = SettlementProposal(
-            proposal_id=proposal_id,
-            group_id=group_id,
-            transactions=settlement_txs,
-            signatures={},
-            status="pending",
-            created_at=time.time()
-        )
-        
-        settlement_proposals[proposal_id] = proposal
-        
-        return proposal
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create settlement proposal: {str(e)}")
+class LoanApproval(BaseModel):
+    loan_id: str
+    approved: bool
+    lender_address: str
 
+class BalanceRequest(BaseModel):
+    address: str
+    token_id: Optional[str] = None
 
-@app.post("/settlements/{proposal_id}/sign")
-async def sign_settlement(
-    proposal_id: str,
-    signer: str,
-    signature: str
-) -> SettlementProposal:
-    """Add signature, return status"""
-    if proposal_id not in settlement_proposals:
-        raise HTTPException(status_code=404, detail="Settlement proposal not found")
-    
-    proposal = settlement_proposals[proposal_id]
-    group = groups[proposal.group_id]
-    
-    # Verify signer is authorized
-    if signer not in group.signers:
-        raise HTTPException(status_code=403, detail="Unauthorized signer")
-    
-    try:
-        # Add signature to proposal
-        proposal.signatures[signer] = signature
-        
-        # Check if we have enough signatures
-        if len(proposal.signatures) >= group.threshold:
-            proposal.status = "ready"
-        
-        settlement_proposals[proposal_id] = proposal
-        
-        return proposal
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to sign settlement: {str(e)}")
-
-
-@app.post("/settlements/{proposal_id}/broadcast")
-async def broadcast_settlement_endpoint(
-    proposal_id: str
-) -> dict:
-    """Submit escrows, return tracking"""
-    if proposal_id not in settlement_proposals:
-        raise HTTPException(status_code=404, detail="Settlement proposal not found")
-    
-    proposal = settlement_proposals[proposal_id]
-    
-    if proposal.status != "ready":
-        raise HTTPException(status_code=400, detail="Settlement not ready for broadcast")
-    
-    try:
-        # Submit settlement transactions to XRPL
-        tx_results = await settlement_service.broadcast_settlement(
-            proposal_id=proposal_id,
-            transactions=proposal.transactions,
-            signatures=proposal.signatures
-        )
-        
-        # Update proposal status
-        proposal.status = "broadcast"
-        settlement_proposals[proposal_id] = proposal
-        
-        return {
-            "proposal_id": proposal_id,
-            "status": "broadcast",
-            "transaction_results": tx_results
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to broadcast settlement: {str(e)}")
+# In-memory storage for demo (replace with database in production)
+lending_pools: Dict[str, dict] = {}
+loan_applications: Dict[str, dict] = {}
+active_loans: Dict[str, dict] = {}
 
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
-    return {"message": "Group Settlement API is running"}
+    """Health check endpoint."""
+    return {"message": "LendX API is running", "status": "healthy"}
 
+@app.post("/pools")
+async def create_lending_pool(pool_data: LendingPoolCreate):
+    """Create a new lending pool."""
+    pool_id = f"pool_{len(lending_pools) + 1}"
+
+    pool = {
+        "id": pool_id,
+        "name": pool_data.name,
+        "amount": pool_data.amount,
+        "available": pool_data.amount,
+        "interest_rate": pool_data.interest_rate,
+        "max_term_days": pool_data.max_term_days,
+        "min_loan_amount": pool_data.min_loan_amount,
+        "lender_address": pool_data.lender_address,
+        "status": "active",
+        "created_at": time.time(),
+    }
+
+    lending_pools[pool_id] = pool
+
+    return {"pool_id": pool_id, "message": "Lending pool created successfully"}
+
+@app.get("/pools")
+async def get_lending_pools():
+    """Get all active lending pools."""
+    return {"pools": list(lending_pools.values())}
+
+@app.get("/pools/{pool_id}")
+async def get_lending_pool(pool_id: str):
+    """Get a specific lending pool by ID."""
+    if pool_id not in lending_pools:
+        raise HTTPException(status_code=404, detail="Lending pool not found")
+
+    return {"pool": lending_pools[pool_id]}
+
+@app.post("/loans/apply")
+async def apply_for_loan(application: LoanApplication):
+    """Apply for a loan from a lending pool."""
+    if application.pool_id not in lending_pools:
+        raise HTTPException(status_code=404, detail="Lending pool not found")
+
+    pool = lending_pools[application.pool_id]
+    if application.amount > pool["available"]:
+        raise HTTPException(status_code=400, detail="Insufficient funds in pool")
+
+    loan_id = f"loan_{len(loan_applications) + 1}"
+
+    loan_app = {
+        "id": loan_id,
+        "pool_id": application.pool_id,
+        "amount": application.amount,
+        "purpose": application.purpose,
+        "term_days": application.term_days,
+        "borrower_address": application.borrower_address,
+        "offered_rate": application.offered_rate,
+        "status": "pending",
+        "applied_at": time.time(),
+    }
+
+    loan_applications[loan_id] = loan_app
+
+    return {"loan_id": loan_id, "message": "Loan application submitted successfully"}
+
+@app.get("/loans/applications")
+async def get_loan_applications(pool_id: Optional[str] = None):
+    """Get loan applications, optionally filtered by pool."""
+    applications = list(loan_applications.values())
+
+    if pool_id:
+        applications = [app for app in applications if app["pool_id"] == pool_id]
+
+    return {"applications": applications}
+
+@app.post("/loans/{loan_id}/approve")
+async def approve_loan(loan_id: str, approval: LoanApproval):
+    """Approve or reject a loan application."""
+    if loan_id not in loan_applications:
+        raise HTTPException(status_code=404, detail="Loan application not found")
+
+    loan_app = loan_applications[loan_id]
+    pool = lending_pools[loan_app["pool_id"]]
+
+    if approval.approved:
+        # Update pool available funds
+        pool["available"] -= loan_app["amount"]
+
+        # Move to active loans
+        active_loans[loan_id] = {
+            **loan_app,
+            "status": "active",
+            "approved_at": time.time(),
+            "lender_address": approval.lender_address,
+        }
+
+        # Remove from applications
+        del loan_applications[loan_id]
+
+        return {"message": "Loan approved successfully", "loan_id": loan_id}
+    else:
+        loan_app["status"] = "rejected"
+        return {"message": "Loan application rejected", "loan_id": loan_id}
+
+@app.get("/loans/active")
+async def get_active_loans(lender_address: Optional[str] = None, borrower_address: Optional[str] = None):
+    """Get active loans, optionally filtered by lender or borrower."""
+    loans = list(active_loans.values())
+
+    if lender_address:
+        loans = [loan for loan in loans if loan.get("lender_address") == lender_address]
+
+    if borrower_address:
+        loans = [loan for loan in loans if loan["borrower_address"] == borrower_address]
+
+    return {"loans": loans}
+
+@app.post("/balance")
+async def get_balance(request: BalanceRequest):
+    """Get XRP or token balance for an address."""
+    try:
+        # Connect to XRPL
+        client = connect('testnet')
+
+        if request.token_id:
+            # Get MPT balance
+            balance = get_mpt_balance(client, request.address, request.token_id)
+        else:
+            # Get XRP balance (this would need to be implemented in xrpl_client)
+            balance = 0  # Placeholder
+
+        return {"address": request.address, "balance": balance, "token_id": request.token_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get balance: {str(e)}")
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Detailed health check endpoint."""
     return {
         "status": "healthy",
-        "timestamp": time.time(),
-        "groups_count": len(groups),
-        "proposals_count": len(settlement_proposals)
+        "version": "1.0.0",
+        "pools_count": len(lending_pools),
+        "applications_count": len(loan_applications),
+        "active_loans_count": len(active_loans),
     }
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "backend.api.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
