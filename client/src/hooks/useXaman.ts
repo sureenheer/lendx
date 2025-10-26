@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { XummSdkJwt } from "@xamanapp/sdk";
+import { XummSdkJwt } from "xumm";
 
 const apiKey = import.meta.env.VITE_XAMAN_API_KEY ?? "";
 const apiSecret = import.meta.env.VITE_XAMAN_API_SECRET ?? "";

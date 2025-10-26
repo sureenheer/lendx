@@ -1,4 +1,4 @@
-import { XummSdkJwt } from "@xamanapp/sdk";
+import { XummSdkJwt } from "xumm";
 
 type WalletState = {
   address?: string;
