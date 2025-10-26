@@ -38,6 +38,16 @@ from .multisig import (
     create_multisig_tx,
     submit_multisigned
 )
+from .rlusd import (
+    setup_rlusd_trustline,
+    get_rlusd_balance,
+    transfer_rlusd,
+    check_trustline_exists,
+    get_rlusd_issuer,
+    validate_rlusd_amount,
+    RLUSD_ISSUER,
+    RLUSD_CURRENCY
+)
 
 __all__ = [
     # Client functions
@@ -64,6 +74,16 @@ __all__ = [
     'setup_multisig_account',
     'create_multisig_tx',
     'submit_multisigned',
+
+    # RLUSD functions
+    'setup_rlusd_trustline',
+    'get_rlusd_balance',
+    'transfer_rlusd',
+    'check_trustline_exists',
+    'get_rlusd_issuer',
+    'validate_rlusd_amount',
+    'RLUSD_ISSUER',
+    'RLUSD_CURRENCY',
 
     # Configuration
     'TESTNET_URL',

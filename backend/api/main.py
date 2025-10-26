@@ -1,11 +1,15 @@
 """FastAPI backend for LendX application."""
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from decimal import Decimal
+from datetime import datetime, timedelta
 import uvicorn
-import time
+import logging
 
 from ..xrpl_client import (
     connect,
@@ -13,7 +17,19 @@ from ..xrpl_client import (
     create_issuance,
     mint_to_holder,
     get_mpt_balance,
+    setup_rlusd_trustline,
+    get_rlusd_balance,
+    transfer_rlusd,
+    check_trustline_exists,
+    RLUSD_ISSUER,
+    RLUSD_CURRENCY
 )
+from ..config.database import get_db, init_db, check_db_connection
+from ..models.database import User, Pool, Application, Loan, UserMPTBalance
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="LendX API",
@@ -29,6 +45,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database connection on startup"""
+    try:
+        init_db()
+        if check_db_connection():
+            logger.info("Database connection established successfully")
+        else:
+            logger.error("Database connection check failed")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
 
 # Pydantic models for API requests/responses
 class LendingPoolCreate(BaseModel):
@@ -56,10 +85,18 @@ class BalanceRequest(BaseModel):
     address: str
     token_id: Optional[str] = None
 
-# In-memory storage for demo (replace with database in production)
-lending_pools: Dict[str, dict] = {}
-loan_applications: Dict[str, dict] = {}
-active_loans: Dict[str, dict] = {}
+class ApplicationUpdate(BaseModel):
+    application_address: str
+    state: str = Field(..., pattern="^(PENDING|APPROVED|REJECTED|EXPIRED)$")
+
+class RLUSDTrustlineRequest(BaseModel):
+    address: str
+    limit: Optional[str] = "1000000"
+
+class RLUSDTransferRequest(BaseModel):
+    from_address: str
+    to_address: str
+    amount: float
 
 
 @app.get("/")
@@ -68,119 +105,228 @@ async def root():
     return {"message": "LendX API is running", "status": "healthy"}
 
 @app.post("/pools")
-async def create_lending_pool(pool_data: LendingPoolCreate):
+async def create_lending_pool(pool_data: LendingPoolCreate, db: Session = Depends(get_db)):
     """Create a new lending pool."""
-    pool_id = f"pool_{len(lending_pools) + 1}"
+    try:
+        # Verify lender exists
+        lender = db.query(User).filter_by(address=pool_data.lender_address).first()
+        if not lender:
+            # Auto-create user if doesn't exist
+            lender = User(address=pool_data.lender_address)
+            db.add(lender)
+            db.flush()
 
-    pool = {
-        "id": pool_id,
-        "name": pool_data.name,
-        "amount": pool_data.amount,
-        "available": pool_data.amount,
-        "interest_rate": pool_data.interest_rate,
-        "max_term_days": pool_data.max_term_days,
-        "min_loan_amount": pool_data.min_loan_amount,
-        "lender_address": pool_data.lender_address,
-        "status": "active",
-        "created_at": time.time(),
-    }
+        # Create pool on XRPL (MPT issuance)
+        # For now, generate a unique pool_address (in production, this would be from XRPL)
+        pool_address = f"MPT_{pool_data.lender_address}_{int(datetime.now().timestamp())}"
+        tx_hash = f"TX_POOL_{int(datetime.now().timestamp())}"
 
-    lending_pools[pool_id] = pool
+        # Create pool in database
+        pool = Pool(
+            pool_address=pool_address,
+            issuer_address=pool_data.lender_address,
+            total_balance=Decimal(str(pool_data.amount)),
+            current_balance=Decimal(str(pool_data.amount)),
+            minimum_loan=Decimal(str(pool_data.min_loan_amount)),
+            duration_days=pool_data.max_term_days,
+            interest_rate=Decimal(str(pool_data.interest_rate)),
+            tx_hash=tx_hash
+        )
 
-    return {"pool_id": pool_id, "message": "Lending pool created successfully"}
+        db.add(pool)
+        db.commit()
+        db.refresh(pool)
+
+        logger.info(f"Created pool {pool_address} for lender {pool_data.lender_address}")
+        return {"pool_id": pool_address, "message": "Lending pool created successfully"}
+
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Database integrity error creating pool: {e}")
+        raise HTTPException(status_code=400, detail="Pool creation failed: integrity error")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating pool: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create pool: {str(e)}")
 
 @app.get("/pools")
-async def get_lending_pools():
+async def get_lending_pools(db: Session = Depends(get_db)):
     """Get all active lending pools."""
-    return {"pools": list(lending_pools.values())}
+    try:
+        pools = db.query(Pool).all()
+        return {"pools": [pool.to_dict() for pool in pools]}
+    except Exception as e:
+        logger.error(f"Error fetching pools: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch pools: {str(e)}")
 
 @app.get("/pools/{pool_id}")
-async def get_lending_pool(pool_id: str):
+async def get_lending_pool(pool_id: str, db: Session = Depends(get_db)):
     """Get a specific lending pool by ID."""
-    if pool_id not in lending_pools:
-        raise HTTPException(status_code=404, detail="Lending pool not found")
+    try:
+        pool = db.query(Pool).filter_by(pool_address=pool_id).first()
+        if not pool:
+            raise HTTPException(status_code=404, detail="Lending pool not found")
 
-    return {"pool": lending_pools[pool_id]}
+        return {"pool": pool.to_dict()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching pool {pool_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch pool: {str(e)}")
 
 @app.post("/loans/apply")
-async def apply_for_loan(application: LoanApplication):
+async def apply_for_loan(application: LoanApplication, db: Session = Depends(get_db)):
     """Apply for a loan from a lending pool."""
-    if application.pool_id not in lending_pools:
-        raise HTTPException(status_code=404, detail="Lending pool not found")
+    try:
+        # Verify pool exists
+        pool = db.query(Pool).filter_by(pool_address=application.pool_id).first()
+        if not pool:
+            raise HTTPException(status_code=404, detail="Lending pool not found")
 
-    pool = lending_pools[application.pool_id]
-    if application.amount > pool["available"]:
-        raise HTTPException(status_code=400, detail="Insufficient funds in pool")
+        # Check pool has sufficient funds
+        if Decimal(str(application.amount)) > pool.current_balance:
+            raise HTTPException(status_code=400, detail="Insufficient funds in pool")
 
-    loan_id = f"loan_{len(loan_applications) + 1}"
+        # Verify borrower exists or create
+        borrower = db.query(User).filter_by(address=application.borrower_address).first()
+        if not borrower:
+            borrower = User(address=application.borrower_address)
+            db.add(borrower)
+            db.flush()
 
-    loan_app = {
-        "id": loan_id,
-        "pool_id": application.pool_id,
-        "amount": application.amount,
-        "purpose": application.purpose,
-        "term_days": application.term_days,
-        "borrower_address": application.borrower_address,
-        "offered_rate": application.offered_rate,
-        "status": "pending",
-        "applied_at": time.time(),
-    }
+        # Create application
+        application_address = f"APP_{application.borrower_address}_{int(datetime.now().timestamp())}"
+        tx_hash = f"TX_APP_{int(datetime.now().timestamp())}"
 
-    loan_applications[loan_id] = loan_app
+        # Calculate interest
+        interest = Decimal(str(application.amount)) * Decimal(str(application.offered_rate)) / Decimal("100")
 
-    return {"loan_id": loan_id, "message": "Loan application submitted successfully"}
+        app = Application(
+            application_address=application_address,
+            borrower_address=application.borrower_address,
+            pool_address=application.pool_id,
+            application_date=datetime.now(),
+            dissolution_date=datetime.now() + timedelta(days=application.term_days),
+            state="PENDING",
+            principal=Decimal(str(application.amount)),
+            interest=interest,
+            tx_hash=tx_hash
+        )
+
+        db.add(app)
+        db.commit()
+        db.refresh(app)
+
+        logger.info(f"Created loan application {application_address}")
+        return {"loan_id": application_address, "message": "Loan application submitted successfully"}
+
+    except HTTPException:
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Database integrity error creating application: {e}")
+        raise HTTPException(status_code=400, detail="Application creation failed")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating loan application: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create application: {str(e)}")
 
 @app.get("/loans/applications")
-async def get_loan_applications(pool_id: Optional[str] = None):
+async def get_loan_applications(pool_id: Optional[str] = None, db: Session = Depends(get_db)):
     """Get loan applications, optionally filtered by pool."""
-    applications = list(loan_applications.values())
+    try:
+        query = db.query(Application)
 
-    if pool_id:
-        applications = [app for app in applications if app["pool_id"] == pool_id]
+        if pool_id:
+            query = query.filter_by(pool_address=pool_id)
 
-    return {"applications": applications}
+        applications = query.all()
+        return {"applications": [app.to_dict() for app in applications]}
+
+    except Exception as e:
+        logger.error(f"Error fetching loan applications: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch applications: {str(e)}")
 
 @app.post("/loans/{loan_id}/approve")
-async def approve_loan(loan_id: str, approval: LoanApproval):
+async def approve_loan(loan_id: str, approval: LoanApproval, db: Session = Depends(get_db)):
     """Approve or reject a loan application."""
-    if loan_id not in loan_applications:
-        raise HTTPException(status_code=404, detail="Loan application not found")
+    try:
+        # Get application
+        app = db.query(Application).filter_by(application_address=loan_id).first()
+        if not app:
+            raise HTTPException(status_code=404, detail="Loan application not found")
 
-    loan_app = loan_applications[loan_id]
-    pool = lending_pools[loan_app["pool_id"]]
+        # Get pool
+        pool = db.query(Pool).filter_by(pool_address=app.pool_address).first()
+        if not pool:
+            raise HTTPException(status_code=404, detail="Pool not found")
 
-    if approval.approved:
-        # Update pool available funds
-        pool["available"] -= loan_app["amount"]
+        if approval.approved:
+            # Update application state
+            app.state = "APPROVED"
 
-        # Move to active loans
-        active_loans[loan_id] = {
-            **loan_app,
-            "status": "active",
-            "approved_at": time.time(),
-            "lender_address": approval.lender_address,
-        }
+            # Update pool balance
+            pool.current_balance -= app.principal
 
-        # Remove from applications
-        del loan_applications[loan_id]
+            # Create loan
+            loan_address = f"LOAN_{app.borrower_address}_{int(datetime.now().timestamp())}"
+            tx_hash = f"TX_LOAN_{int(datetime.now().timestamp())}"
 
-        return {"message": "Loan approved successfully", "loan_id": loan_id}
-    else:
-        loan_app["status"] = "rejected"
-        return {"message": "Loan application rejected", "loan_id": loan_id}
+            loan = Loan(
+                loan_address=loan_address,
+                pool_address=app.pool_address,
+                borrower_address=app.borrower_address,
+                lender_address=approval.lender_address,
+                start_date=datetime.now(),
+                end_date=datetime.now() + timedelta(days=pool.duration_days),
+                principal=app.principal,
+                interest=app.interest,
+                state="ONGOING",
+                tx_hash=tx_hash
+            )
+
+            db.add(loan)
+            db.commit()
+
+            logger.info(f"Approved loan application {loan_id}, created loan {loan_address}")
+            return {"message": "Loan approved successfully", "loan_id": loan_address}
+        else:
+            # Reject application
+            app.state = "REJECTED"
+            db.commit()
+
+            logger.info(f"Rejected loan application {loan_id}")
+            return {"message": "Loan application rejected", "loan_id": loan_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error approving/rejecting loan {loan_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process approval: {str(e)}")
 
 @app.get("/loans/active")
-async def get_active_loans(lender_address: Optional[str] = None, borrower_address: Optional[str] = None):
+async def get_active_loans(
+    lender_address: Optional[str] = None,
+    borrower_address: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     """Get active loans, optionally filtered by lender or borrower."""
-    loans = list(active_loans.values())
+    try:
+        query = db.query(Loan)
 
-    if lender_address:
-        loans = [loan for loan in loans if loan.get("lender_address") == lender_address]
+        if lender_address:
+            query = query.filter_by(lender_address=lender_address)
 
-    if borrower_address:
-        loans = [loan for loan in loans if loan["borrower_address"] == borrower_address]
+        if borrower_address:
+            query = query.filter_by(borrower_address=borrower_address)
 
-    return {"loans": loans}
+        loans = query.all()
+        return {"loans": [loan.to_dict() for loan in loans]}
+
+    except Exception as e:
+        logger.error(f"Error fetching active loans: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch loans: {str(e)}")
 
 @app.post("/balance")
 async def get_balance(request: BalanceRequest):
@@ -202,14 +348,345 @@ async def get_balance(request: BalanceRequest):
         raise HTTPException(status_code=500, detail=f"Failed to get balance: {str(e)}")
 
 @app.get("/health")
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
     """Detailed health check endpoint."""
+    try:
+        pools_count = db.query(Pool).count()
+        applications_count = db.query(Application).count()
+        active_loans_count = db.query(Loan).count()
+
+        return {
+            "status": "healthy",
+            "version": "1.0.0",
+            "database": "connected",
+            "pools_count": pools_count,
+            "applications_count": applications_count,
+            "active_loans_count": active_loans_count,
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "version": "1.0.0",
+            "database": "disconnected",
+            "error": str(e)
+        }
+
+
+# ============================================================================
+# NEW ENDPOINTS FROM SPEC_ALIGNMENT.md
+# ============================================================================
+
+@app.get("/api/loans")
+async def get_loans_by_mode(
+    mode: str = Query(..., regex="^(borrower|lender)$"),
+    address: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Get loans filtered by user role (borrower or lender).
+
+    Args:
+        mode: Either 'borrower' or 'lender'
+        address: User's XRP wallet address
+
+    Returns:
+        List of loans for the specified user role
+    """
+    try:
+        if mode == "borrower":
+            loans = db.query(Loan).filter_by(borrower_address=address).all()
+        else:  # mode == "lender"
+            loans = db.query(Loan).filter_by(lender_address=address).all()
+
+        return {"loans": [loan.to_dict() for loan in loans]}
+
+    except Exception as e:
+        logger.error(f"Error fetching loans for {mode} {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch loans: {str(e)}")
+
+
+@app.get("/api/verify")
+async def verify_user(address: str = Query(...), db: Session = Depends(get_db)):
+    """
+    Get user DID and default MPT balance.
+
+    Args:
+        address: User's XRP wallet address
+
+    Returns:
+        User information including DID and MPT balance
+    """
+    try:
+        user = db.query(User).filter_by(address=address).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get default MPT balance (could be extended to query specific MPT)
+        mpt_balance = db.query(UserMPTBalance).filter_by(
+            user_address=address
+        ).first()
+
+        return {
+            "address": user.address,
+            "did": user.did,
+            "mpt_balance": float(mpt_balance.balance) if mpt_balance else 0.0,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying user {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to verify user: {str(e)}")
+
+
+@app.put("/api/application")
+async def update_application_status(
+    update_data: ApplicationUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update application status.
+
+    Args:
+        update_data: Contains application_address and new state
+
+    Returns:
+        Success message
+    """
+    try:
+        app = db.query(Application).filter_by(
+            application_address=update_data.application_address
+        ).first()
+
+        if not app:
+            raise HTTPException(status_code=404, detail="Application not found")
+
+        # Update state
+        app.state = update_data.state
+        db.commit()
+
+        logger.info(f"Updated application {update_data.application_address} to state {update_data.state}")
+        return {
+            "message": "Application status updated successfully",
+            "application_address": update_data.application_address,
+            "state": update_data.state
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating application {update_data.application_address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update application: {str(e)}")
+
+
+# ============================================================================
+# RLUSD ENDPOINTS
+# ============================================================================
+
+@app.post("/api/rlusd/setup")
+async def setup_rlusd_trust(request: RLUSDTrustlineRequest):
+    """
+    Create RLUSD trust line for a user.
+
+    Note: In production, this would require wallet signing from frontend.
+    This endpoint is for demonstration/testing purposes.
+
+    Args:
+        request: Contains user address and trust line limit
+
+    Returns:
+        Transaction hash of trust line creation
+    """
+    try:
+        # Connect to XRPL
+        client = connect('testnet')
+
+        # Note: In production, wallet would be from user's signature
+        # For now, this is a placeholder that would fail without proper wallet
+        logger.warning("RLUSD trust line setup requires wallet from frontend - endpoint for reference only")
+
+        return {
+            "message": "Trust line setup requires wallet signature from frontend",
+            "rlusd_issuer": RLUSD_ISSUER,
+            "rlusd_currency": RLUSD_CURRENCY,
+            "limit": request.limit
+        }
+
+    except Exception as e:
+        logger.error(f"Error setting up RLUSD trust line: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to setup trust line: {str(e)}")
+
+
+@app.get("/api/rlusd/balance/{address}")
+async def get_rlusd_balance_endpoint(address: str, db: Session = Depends(get_db)):
+    """
+    Get RLUSD balance for an address.
+
+    This queries the XRPL in real-time and optionally caches the result
+    in the database for performance.
+
+    Args:
+        address: XRP wallet address
+
+    Returns:
+        RLUSD balance and trust line status
+    """
+    try:
+        # Connect to XRPL
+        client = connect('testnet')
+
+        # Check if trust line exists
+        has_trustline = check_trustline_exists(client, address)
+
+        # Get balance
+        balance = get_rlusd_balance(client, address)
+
+        # Cache balance in database
+        user = db.query(User).filter_by(address=address).first()
+        if not user:
+            user = User(address=address)
+            db.add(user)
+            db.flush()
+
+        # Update or create balance cache
+        # Note: Using a generic MPT ID for RLUSD
+        rlusd_mpt_id = f"RLUSD_{RLUSD_ISSUER}"
+        balance_cache = db.query(UserMPTBalance).filter_by(
+            user_address=address,
+            mpt_id=rlusd_mpt_id
+        ).first()
+
+        if balance_cache:
+            balance_cache.balance = balance
+            balance_cache.last_synced = datetime.now()
+        else:
+            balance_cache = UserMPTBalance(
+                user_address=address,
+                mpt_id=rlusd_mpt_id,
+                balance=balance
+            )
+            db.add(balance_cache)
+
+        db.commit()
+
+        logger.info(f"Fetched RLUSD balance for {address}: {balance}")
+
+        return {
+            "address": address,
+            "balance": float(balance),
+            "has_trustline": has_trustline,
+            "rlusd_issuer": RLUSD_ISSUER,
+            "rlusd_currency": RLUSD_CURRENCY,
+            "last_synced": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching RLUSD balance for {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch RLUSD balance: {str(e)}")
+
+
+@app.get("/api/rlusd/check-trustline/{address}")
+async def check_rlusd_trustline(address: str):
+    """
+    Check if an address has RLUSD trust line set up.
+
+    This is useful for pre-flight checks before attempting transfers
+    or loan disbursements.
+
+    Args:
+        address: XRP wallet address
+
+    Returns:
+        Trust line status
+    """
+    try:
+        client = connect('testnet')
+        has_trustline = check_trustline_exists(client, address)
+
+        logger.info(f"Trust line check for {address}: {has_trustline}")
+
+        return {
+            "address": address,
+            "has_trustline": has_trustline,
+            "rlusd_issuer": RLUSD_ISSUER,
+            "message": "Trust line exists" if has_trustline else "No RLUSD trust line found"
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking trust line for {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check trust line: {str(e)}")
+
+
+@app.post("/api/rlusd/transfer")
+async def transfer_rlusd_endpoint(request: RLUSDTransferRequest):
+    """
+    Transfer RLUSD between addresses.
+
+    Note: In production, this would require wallet signing from frontend.
+    This endpoint is for demonstration/testing purposes.
+
+    Args:
+        request: Contains sender, recipient, and amount
+
+    Returns:
+        Transaction hash of the transfer
+    """
+    try:
+        # Connect to XRPL
+        client = connect('testnet')
+
+        # Note: In production, wallet would be from user's signature
+        logger.warning("RLUSD transfer requires wallet signature from frontend - endpoint for reference only")
+
+        # Validate both parties have trust lines
+        sender_has_trustline = check_trustline_exists(client, request.from_address)
+        recipient_has_trustline = check_trustline_exists(client, request.to_address)
+
+        if not sender_has_trustline:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sender {request.from_address} does not have RLUSD trust line"
+            )
+
+        if not recipient_has_trustline:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Recipient {request.to_address} does not have RLUSD trust line"
+            )
+
+        return {
+            "message": "RLUSD transfer requires wallet signature from frontend",
+            "from": request.from_address,
+            "to": request.to_address,
+            "amount": request.amount,
+            "rlusd_currency": RLUSD_CURRENCY,
+            "rlusd_issuer": RLUSD_ISSUER
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error transferring RLUSD: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to transfer RLUSD: {str(e)}")
+
+
+@app.get("/api/rlusd/info")
+async def get_rlusd_info():
+    """
+    Get RLUSD configuration information.
+
+    Returns:
+        RLUSD issuer address and currency code
+    """
     return {
-        "status": "healthy",
-        "version": "1.0.0",
-        "pools_count": len(lending_pools),
-        "applications_count": len(loan_applications),
-        "active_loans_count": len(active_loans),
+        "rlusd_issuer": RLUSD_ISSUER,
+        "rlusd_currency": RLUSD_CURRENCY,
+        "network": "testnet",
+        "description": "Ripple USD stablecoin on XRP Ledger",
+        "requires_trustline": True
     }
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, List
 
-from xrpl import Wallet
+from xrpl.wallet import Wallet
 from xrpl.clients.sync_client import Client
 from xrpl.models import (
     Response,
@@ -11,7 +11,7 @@ from xrpl.models import (
     SignerListSet,
     Transaction,
 )
-from xrpl.utils import encode_for_multisigning, encode_for_signing
+from xrpl.core.binarycodec import encode_for_multisigning, encode_for_signing
 
 from .exceptions import XRPLClientError
 

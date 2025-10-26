@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Optional
 
-from xrpl import Wallet
+from xrpl.wallet import Wallet
 from xrpl.clients.sync_client import Client
 from xrpl.models import (
     EscrowCancel,
