@@ -1,44 +1,55 @@
 # LendX
 
-A decentralized lending marketplace built on XRPL (XRP Ledger) with verifiable credentials, multi-signature support, and automated settlement.
+A decentralized lending marketplace built on XRPL (XRP Ledger) with Auth0 authentication, XRPL wallet integration, and a modern React-based interface focused on emerging market lending.
 
-## 🚀 Features
+## Features
 
-- **Decentralized Lending**: Create lending pools and apply for loans
-- **Dual Role Interface**: Switch between lender and borrower views
-- **XRPL Integration**: Native XRP Ledger blockchain integration
-- **Verifiable Credentials**: DID-based identity and trust system
-- **Xumm Wallet Support**: Secure wallet connection and transaction signing
-- **Real-time Dashboard**: Professional financial interface with dark theme
-- **Escrow Automation**: Smart contract-like escrow for loan security
-- **Multi-signature Support**: Enterprise-grade security features
+- **Decentralized Lending**: Create lending pools and apply for loans through peer-to-peer transactions
+- **Dual Role Interface**: Seamlessly switch between lender and borrower dashboard views
+- **XRPL Integration**: Native XRP Ledger blockchain integration with direct transaction support
+- **Auth0 Authentication**: Google SSO integration with secure authentication flows
+- **XRPL Wallet Management**: Direct wallet generation and connection (replacing Xumm SDK)
+- **Verifiable Credentials**: DID-based identity and trust system for borrower verification
+- **Professional Dashboard**: Modern React interface with dark theme and responsive design
+- **Multi-signature Support**: Enterprise-grade security features for institutional use
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 lendx/
 ├── frontend/                # Next.js 14 LendX application
 │   ├── app/                # App router pages
-│   │   ├── (auth)/         # Authentication flow
-│   │   └── (dashboard)/    # Main dashboard
-│   ├── components/         # UI components
-│   │   ├── lendx/         # Core LendX components
-│   │   ├── ui/            # Shadcn/ui components
-│   │   └── dashboard/     # Dashboard widgets
-│   ├── lib/               # Utilities
-│   │   └── xrpl/         # XRPL integration layer
-│   └── package.json
+│   │   ├── (auth)/         # Authentication pages (signup)
+│   │   ├── (dashboard)/    # Main dashboard with lender/borrower views
+│   │   ├── layout.tsx     # Root layout with theme provider
+│   │   └── page.tsx       # Landing page
+│   ├── components/         # React UI components
+│   │   ├── lendx/         # Core lending components (lender-view, borrower-view)
+│   │   ├── ui/            # Shadcn/ui base components
+│   │   ├── dashboard/     # Dashboard-specific components
+│   │   ├── chat/          # Chat interface components
+│   │   └── icons/         # Custom icon components
+│   ├── lib/               # Utility libraries
+│   │   ├── xrpl/         # XRPL integration (client, wallet, transactions, credentials)
+│   │   ├── auth0.ts      # Auth0 configuration
+│   │   └── utils.ts      # General utilities
+│   └── package.json      # Frontend dependencies
 ├── backend/               # Python FastAPI services
 │   ├── xrpl_client/      # XRPL client library
-│   ├── graph/           # Settlement algorithms
-│   └── services/        # Business logic
-├── pyproject.toml        # Python dependencies
+│   │   ├── client.py     # Connection and transaction handling
+│   │   ├── mpt.py        # Multi-Purpose Token operations
+│   │   ├── escrow.py     # Escrow transaction handling
+│   │   ├── multisig.py   # Multi-signature account management
+│   │   └── exceptions.py # Custom XRPL exceptions
+│   ├── api/              # FastAPI application
+│   └── tests/            # Python test suite
+├── pyproject.toml        # Python dependencies and configuration
 └── README.md
 ```
 
-## 🛠️ Installation
+## Installation
 
-### Frontend (LendX App)
+### Frontend (Next.js Application)
 
 ```bash
 # Clone the repository
@@ -48,18 +59,18 @@ cd lendx
 # Navigate to frontend
 cd frontend
 
-# Install dependencies
+# Install dependencies (legacy peer deps required for some XRPL packages)
 npm install --legacy-peer-deps
 
 # Create environment file
 cp .env.example .env.local
-# Add your Xumm API credentials
+# Add your Auth0 and XRPL configuration
 
 # Start development server
 npm run dev
 ```
 
-### Backend (Python)
+### Backend (Python Services)
 
 ```bash
 # From project root
@@ -69,25 +80,49 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e .
 
+# Run tests
+pytest
+
 # Start FastAPI server (when implemented)
 uvicorn backend.api.main:app --reload
 ```
 
-## 📖 Usage
+## Usage
 
-### XRPL Client
+### Frontend Application
+
+The LendX frontend provides two main interfaces:
+
+1. **Landing Page** (`/`): Welcome page with Auth0 login/signup
+2. **Dashboard** (`/dashboard`): Main application with dual-role interface
+
+#### Lender Dashboard Features
+- Create lending pools with custom rates and terms
+- View pool statistics and available liquidity
+- Approve/reject loan requests from borrowers
+- Withdraw funds from pools
+
+#### Borrower Dashboard Features
+- Browse available lending pools
+- Apply for loans with purpose descriptions
+- Track loan status and repayment schedules
+- Make loan payments
+
+### Python XRPL Client Library
+
+#### Basic Connection and Transactions
 
 ```python
-from src.xrpl_client import connect, submit_and_wait
+from backend.xrpl_client import connect, submit_and_wait
 from xrpl.wallet import Wallet
 
-# Connect to XRPL
-client = connect('testnet')
+# Connect to XRPL network
+client = connect('testnet')  # or 'mainnet'
 
 # Create a wallet
 wallet = Wallet.create()
 
-# Submit a transaction
+# Submit a payment transaction
 tx = {
     "TransactionType": "Payment",
     "Account": wallet.address,
@@ -97,86 +132,123 @@ tx = {
 result = submit_and_wait(client, tx, wallet)
 ```
 
-### Multi-Signature Accounts
+#### Multi-Purpose Token (MPT) Operations
 
 ```python
-from src.xrpl_client import setup_multisig_account, create_multisig_tx
+from backend.xrpl_client import create_issuance, mint_to_holder, get_mpt_balance
 
-# Setup multisig account
+# Create MPT issuance for loan representation
+issuance_id = create_issuance(client, issuer_wallet, "LOAN", "LendX Loan Token")
+
+# Mint tokens to represent loan amount
+tx_hash = mint_to_holder(client, issuer_wallet, borrower_address, 100.0, issuance_id)
+
+# Check token balance
+balance = get_mpt_balance(client, borrower_address, issuance_id)
+```
+
+#### Escrow Operations for Loan Security
+
+```python
+from backend.xrpl_client import create_deposit_escrow, finish_escrow
+
+# Create escrow for loan collateral
+sequence = create_deposit_escrow(client, borrower_wallet, 1000000, lender_address)
+
+# Release escrow when loan is repaid
+tx_hash = finish_escrow(client, lender_wallet, borrower_address, sequence)
+```
+
+#### Multi-Signature Account Management
+
+```python
+from backend.xrpl_client import setup_multisig_account, create_multisig_tx
+
+# Setup multisig account for institutional lending
 signers = ["rAddress1", "rAddress2", "rAddress3"]
 tx_hash = setup_multisig_account(client, master_wallet, signers, threshold=2)
 
-# Create multisigned transaction
+# Create multi-signed transaction
 multisig_blob = create_multisig_tx(tx_json, [wallet1, wallet2])
 ```
 
-### MPT Operations
-
-```python
-from src.xrpl_client import create_issuance, mint_to_holder, get_mpt_balance
-
-# Create MPT issuance
-issuance_id = create_issuance(client, issuer_wallet, "TOKEN", "My Token")
-
-# Mint tokens to holder
-tx_hash = mint_to_holder(client, issuer_wallet, holder_address, 100.0, issuance_id)
-
-# Check balance
-balance = get_mpt_balance(client, holder_address, issuance_id)
-```
-
-### Escrow Transactions
-
-```python
-from src.xrpl_client import create_deposit_escrow, finish_escrow
-
-# Create deposit escrow
-sequence = create_deposit_escrow(client, member_wallet, 1000000, dest_address)
-
-# Finish escrow (when conditions are met)
-tx_hash = finish_escrow(client, wallet, owner_address, sequence)
-```
-
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env.local` file in the frontend directory:
 
 ```env
-# XRPL Network
-XRPL_NETWORK=testnet  # or mainnet
+# Auth0 Configuration
+AUTH0_SECRET='use [openssl rand -hex 32] to generate a 32 bytes value'
+AUTH0_BASE_URL='http://localhost:3000'
+AUTH0_ISSUER_BASE_URL='https://your-tenant.auth0.com'
+AUTH0_CLIENT_ID='your_auth0_client_id'
+AUTH0_CLIENT_SECRET='your_auth0_client_secret'
 
-# Xaman Wallet (for frontend)
-VITE_XAMAN_API_KEY=your_api_key
-VITE_XAMAN_API_SECRET=your_api_secret
+# XRPL Configuration
+NEXT_PUBLIC_XRPL_NETWORK=testnet  # or mainnet
+NEXT_PUBLIC_XRPL_WEBSOCKET=wss://s.altnet.rippletest.net:51233
+
+# Optional: Xumm Wallet Integration (legacy)
+NEXT_PUBLIC_XAMAN_API_KEY=your_xaman_key
+NEXT_PUBLIC_XAMAN_API_SECRET=your_xaman_secret
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
-# Run Python tests
+# Run Python backend tests
 pytest
 
-# Run frontend tests
-cd client
-npm test
+# Run frontend linting
+cd frontend
+npm run lint
 
-# Lint code
-cd client && npm run lint
+# Build frontend for production
+npm run build
 ```
 
-## 📚 Documentation
+## Tech Stack
 
-- [CalHacks 2025 Notion](https://www.notion.so/CalHacks-2025-29853e49b0ab80b48a7af9dbcd6f10eb?source=copy_link)
-- [API Documentation](docs/api.md) (coming soon)
-- [Architecture Overview](docs/architecture.md) (coming soon)
+### Frontend
+- **Next.js 14**: React framework with App Router
+- **TypeScript**: Type-safe JavaScript development
+- **Tailwind CSS**: Utility-first CSS framework
+- **Shadcn/ui**: Modern component library
+- **Auth0**: Authentication and user management
+- **Framer Motion**: Animation library
+- **XRPL.js**: Direct XRPL blockchain integration
+- **Zustand**: State management
 
-## 🤝 Contributing
+### Backend
+- **Python 3.11+**: Core backend language
+- **FastAPI**: Modern Python web framework
+- **xrpl-py**: Official Python XRPL library
+- **Pydantic**: Data validation and settings management
+- **pytest**: Testing framework
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+## Key Implementation Details
 
-### Development Workflow
+### XRPL Integration
+- Direct wallet generation replacing Xumm SDK dependency
+- Multi-Purpose Token (MPT) support for loan representation
+- Escrow transactions for secure loan handling
+- Multi-signature account support for institutional use
+- WebSocket subscriptions for real-time updates
+
+### Authentication Flow
+- Auth0 Google SSO integration
+- XRPL wallet connection and DID generation
+- Verifiable credential management for borrower verification
+
+### Frontend Architecture
+- Dual-role dashboard with seamless switching
+- Real-time transaction status updates
+- Responsive design with dark theme
+- Professional financial interface components
+
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -184,24 +256,14 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [XRPL Documentation](https://xrpl.org/) for comprehensive ledger documentation
-- [Xaman Wallet](https://xaman.app/) for wallet integration
+- [Auth0](https://auth0.com/) for authentication services
 - CalHacks 2025 organizers and participants
 
-## 📞 Support
-
-If you have any questions or need support:
-
-- Open an [Issue](https://github.com/sureenheer/calhacks/issues)
-- Join our [Discussions](https://github.com/sureenheer/calhacks/discussions)
-- Check our [Notion](https://www.notion.so/CalHacks-2025-29853e49b0ab80b48a7af9dbcd6f10eb?source=copy_link) documentation
-
----
-
-**Built with ❤️ for CalHacks 2025**
+Built for CalHacks 2025
