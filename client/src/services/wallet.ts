@@ -1,4 +1,5 @@
-import { XummSdkJwt } from "xumm";
+import { XummSdkJwt } from "xumm-sdk";
+
 
 type WalletState = {
   address?: string;
