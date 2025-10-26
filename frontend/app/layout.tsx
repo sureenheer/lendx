@@ -3,6 +3,7 @@ import { Roboto_Mono } from "next/font/google"
 import "./globals.css"
 import type { Metadata } from "next"
 import { V0Provider } from "@/lib/v0-context"
+// import { UserProvider } from '@auth0/nextjs-auth0'
 import localFont from "next/font/local"
 
 const robotoMono = Roboto_Mono({

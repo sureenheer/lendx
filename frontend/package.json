@@ -9,6 +9,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "@auth0/auth0-spa-js": "^2.7.0",
+    "@auth0/nextjs-auth0": "^4.11.0",
     "@emotion/is-prop-valid": "latest",
     "@eslint/eslintrc": "latest",
     "@hookform/resolvers": "^3.10.0",
