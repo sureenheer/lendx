@@ -3,6 +3,7 @@ import { Roboto_Mono } from "next/font/google"
 import "./globals.css"
 import type { Metadata } from "next"
 import { V0Provider } from "@/lib/v0-context"
+import { UserProvider } from '@auth0/nextjs-auth0/client'
 import localFont from "next/font/local"
 
 const robotoMono = Roboto_Mono({
@@ -38,7 +39,9 @@ export default function RootLayout({
         <link rel="preload" href="/fonts/Rebels-Fett.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       </head>
       <body className={`${rebelGrotesk.variable} ${robotoMono.variable} antialiased`}>
-        <V0Provider isV0={isV0}>{children}</V0Provider>
+        <UserProvider>
+          <V0Provider isV0={isV0}>{children}</V0Provider>
+        </UserProvider>
       </body>
     </html>
   )
