@@ -2,6 +2,8 @@
 
 A decentralized lending marketplace built on XRPL (XRP Ledger) with verifiable credentials, multi-signature support, and automated settlement.
 
+https://lendxrp.vercel.app/
+
 ## 🚀 Features
 
 - **Decentralized Lending**: Create lending pools and apply for loans
