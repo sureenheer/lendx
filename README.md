@@ -1,66 +1,76 @@
-# CalHacks 2025
+# LendX
 
-A comprehensive XRPL (XRP Ledger) settlement system with multi-signature support, escrow functionality, and MPT (Multi-Purpose Token) operations.
+A decentralized lending marketplace built on XRPL (XRP Ledger) with verifiable credentials, multi-signature support, and automated settlement.
 
 ## 🚀 Features
 
-- **XRPL Client**: Robust connection and transaction handling for testnet/mainnet
-- **Multi-Signature Support**: Secure multi-signature account management
-- **Escrow Transactions**: Deposit and settlement escrow functionality
-- **MPT Operations**: Complete Multi-Purpose Token issuance and management
-- **Balance Synchronization**: Automated balance sync with caching
-- **Web Client**: React-based frontend with Xaman wallet integration
-- **Real-time Updates**: WebSocket-based account monitoring
+- **Decentralized Lending**: Create lending pools and apply for loans
+- **Dual Role Interface**: Switch between lender and borrower views
+- **XRPL Integration**: Native XRP Ledger blockchain integration
+- **Verifiable Credentials**: DID-based identity and trust system
+- **Xumm Wallet Support**: Secure wallet connection and transaction signing
+- **Real-time Dashboard**: Professional financial interface with dark theme
+- **Escrow Automation**: Smart contract-like escrow for loan security
+- **Multi-signature Support**: Enterprise-grade security features
 
 ## 📁 Project Structure
 
 ```
-calhacks/
-├── src/
-│   ├── xrpl_client/          # XRPL client library
-│   │   ├── client.py         # Core client functionality
-│   │   ├── config.py         # Network configuration
-│   │   ├── exceptions.py     # Custom exceptions
-│   │   ├── mpt.py          # MPT token operations
-│   │   ├── multisig.py     # Multi-signature support
-│   │   └── escrow.py       # Escrow transactions
-│   └── services/            # Business logic services
-│       └── balance_sync.py  # Balance synchronization
-├── client/                  # React frontend
-│   ├── src/
-│   │   ├── hooks/          # React hooks
-│   │   └── services/       # Frontend services
+lendx/
+├── frontend/                # Next.js 14 LendX application
+│   ├── app/                # App router pages
+│   │   ├── (auth)/         # Authentication flow
+│   │   └── (dashboard)/    # Main dashboard
+│   ├── components/         # UI components
+│   │   ├── lendx/         # Core LendX components
+│   │   ├── ui/            # Shadcn/ui components
+│   │   └── dashboard/     # Dashboard widgets
+│   ├── lib/               # Utilities
+│   │   └── xrpl/         # XRPL integration layer
 │   └── package.json
-├── pyproject.toml          # Python package configuration
-├── README.md
-├── LICENSE
-├── CONTRIBUTING.md
-└── CHANGELOG.md
+├── backend/               # Python FastAPI services
+│   ├── xrpl_client/      # XRPL client library
+│   ├── graph/           # Settlement algorithms
+│   └── services/        # Business logic
+├── pyproject.toml        # Python dependencies
+└── README.md
 ```
 
 ## 🛠️ Installation
 
-### Backend (Python)
+### Frontend (LendX App)
 
 ```bash
 # Clone the repository
-git clone https://github.com/sureenheer/calhacks.git
-cd calhacks
+git clone https://github.com/sureenheer/lendx.git
+cd lendx
 
-# Create virtual environment
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install --legacy-peer-deps
+
+# Create environment file
+cp .env.example .env.local
+# Add your Xumm API credentials
+
+# Start development server
+npm run dev
+```
+
+### Backend (Python)
+
+```bash
+# From project root
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -e .
-```
 
-### Frontend (React)
-
-```bash
-cd client
-npm install
-npm run dev
+# Start FastAPI server (when implemented)
+uvicorn backend.api.main:app --reload
 ```
 
 ## 📖 Usage
