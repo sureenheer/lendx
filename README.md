@@ -17,7 +17,7 @@ A decentralized lending marketplace built on XRPL (XRP Ledger) with Auth0 authen
 
 ```
 lendx/
-├── frontend/                # Next.js 14 LendX application
+├── frontend/                # Next.js 14 LendX application (PRIMARY UI)
 │   ├── app/                # App router pages
 │   │   ├── (auth)/         # Authentication pages (signup)
 │   │   ├── (dashboard)/    # Main dashboard with lender/borrower views
@@ -53,8 +53,8 @@ lendx/
 
 ```bash
 # Clone the repository
-git clone https://github.com/sureenheer/lendx.git
-cd lendx
+git clone https://github.com/sureenheer/calhacks.git
+cd calhacks
 
 # Navigate to frontend
 cd frontend
@@ -68,6 +68,7 @@ cp .env.example .env.local
 
 # Start development server
 npm run dev
+# Frontend runs on http://localhost:3000
 ```
 
 ### Backend (Python Services)
@@ -178,6 +179,7 @@ multisig_blob = create_multisig_tx(tx_json, [wallet1, wallet2])
 
 Create a `.env.local` file in the frontend directory:
 
+**Python Backend** (`backend/.env`):
 ```env
 # Auth0 Configuration
 AUTH0_SECRET='use [openssl rand -hex 32] to generate a 32 bytes value'
