@@ -213,6 +213,8 @@ client/web_modules/
 
 # TypeScript cache
 client/*.tsbuildinfo
+frontend/*.tsbuildinfo
+*.tsbuildinfo
 
 # Optional npm cache directory
 client/.npm
@@ -410,4 +412,3 @@ temp/
 *.bak
 *.backup
 doc/*
-CLAUDE.md

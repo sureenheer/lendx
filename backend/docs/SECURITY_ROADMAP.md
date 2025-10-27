@@ -458,7 +458,7 @@ pytest backend/tests/test_rls.py -v
 #### Tasks
 
 1. **Update documentation**
-   - [ ] Update CLAUDE.md with auth information
+   - [ ] Update docs/DEVELOPMENT.md with auth information
    - [ ] Update API documentation (Swagger/OpenAPI)
    - [ ] Create deployment guide
    - [ ] Create incident response playbook
