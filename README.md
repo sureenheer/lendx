@@ -15,12 +15,12 @@
 
 **Democratizing Access to Credit Through Decentralized Finance**
 
-A decentralized lending marketplace built on XRPL (XRP Ledger) that empowers peer-to-peer lending with verifiable credentials, multi-signature support, and automated settlement - focused on bringing financial inclusion to emerging markets.
+A decentralized lending marketplace built on XRPL (XRP Ledger) that enables peer-to-peer lending with verifiable credentials, multi-signature support, and automated settlement.
 
 <div align="center">
 
-[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-lendxrp.vercel.app-brightgreen?style=for-the-badge)](https://lendxrp.vercel.app)
-[![Demo Video](https://img.shields.io/badge/🎥%20Demo%20Video-YouTube-red?style=for-the-badge)](https://www.youtube.com/watch?v=6GD9fiZIC9I)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-lendxrp.vercel.app-brightgreen?style=for-the-badge)](https://lendxrp.vercel.app)
+[![Demo Video](https://img.shields.io/badge/Demo%20Video-YouTube-red?style=for-the-badge)](https://www.youtube.com/watch?v=6GD9fiZIC9I)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
@@ -31,44 +31,40 @@ A decentralized lending marketplace built on XRPL (XRP Ledger) that empowers pee
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [About the Project](#-about-the-project)
-- [Inspiration](#-inspiration)
-- [Key Features](#-key-features)
-- [Demo Video](#-demo-video)
-- [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
-- [What We Learned](#-what-we-learned)
-- [Accomplishments](#-accomplishments)
-- [Roadmap](#-roadmap)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Acknowledgments](#-acknowledgments)
-
----
-
-## 🌟 About the Project
-
-LendX is a revolutionary decentralized lending platform that leverages the XRP Ledger to create a trustless, efficient, and accessible marketplace for peer-to-peer lending. By combining blockchain technology with modern UX design, we're making financial services accessible to billions of underserved people in emerging markets.
-
-Unlike traditional banking systems that exclude billions due to lack of credit history, high fees, and geographical barriers, LendX enables:
-
-- **Zero-friction lending** with transaction fees of fractions of a cent
-- **Trustless loan agreements** secured by blockchain smart contracts
-- **Native wallet integration** for seamless user experience
-- **Verifiable credentials** for identity and reputation without traditional credit scores
-- **Real-time settlement** with instant transaction confirmation
-
-### 🖼️ Screenshots
-
-> 📸 **Coming Soon**: Screenshots showcasing the lender dashboard, borrower interface, loan application flow, and real-time transaction monitoring.
+- [About the Project](#about-the-project)
+- [Inspiration](#inspiration)
+- [Key Features](#key-features)
+- [Demo Video](#demo-video)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [What We Learned](#what-we-learned)
+- [Accomplishments](#accomplishments)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
 ---
 
-## 💡 Inspiration
+## About the Project
 
-Financial inclusion remains one of the world's greatest challenges, particularly in emerging markets where traditional banking systems fail to serve billions of people. We were inspired by the potential of decentralized finance (DeFi) to democratize access to credit, especially for small business owners and entrepreneurs in regions like Southeast Asia, Africa, and Latin America.
+LendX is a decentralized lending platform that leverages the XRP Ledger to create a trustless, efficient marketplace for peer-to-peer lending. By combining blockchain technology with modern UX design, we're making financial services accessible to underserved populations in emerging markets.
+
+**Key Benefits:**
+
+- Transaction fees of fractions of a cent
+- Trustless loan agreements secured by blockchain
+- Native wallet integration for seamless user experience
+- Verifiable credentials for identity and reputation
+- Real-time settlement with instant confirmation
+
+---
+
+## Inspiration
+
+Financial inclusion remains one of the world's greatest challenges. Traditional banking systems fail to serve billions of people, particularly in emerging markets. We were inspired by the potential of decentralized finance (DeFi) to democratize access to credit for small business owners and entrepreneurs in regions like Southeast Asia, Africa, and Latin America.
 
 **The Problem:**
 - 1.7 billion adults globally remain unbanked
@@ -77,37 +73,37 @@ Financial inclusion remains one of the world's greatest challenges, particularly
 - Cross-border lending is prohibitively expensive and slow
 
 **Our Solution:**
-LendX leverages XRPL's incredibly low transaction costs (fractions of a cent) and fast settlement times (3-5 seconds) to make microlending economically viable at scale. By building a native blockchain application with verifiable credentials, we're creating a new paradigm for trust and credit access.
+
+LendX leverages XRPL's low transaction costs (fractions of a cent) and fast settlement times (3-5 seconds) to make microlending economically viable at scale.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### For Borrowers
-- 🔍 **Browse Lending Pools**: Discover lending opportunities with transparent rates and terms
-- 📝 **Apply for Loans**: Submit loan applications with purpose descriptions and verifiable credentials
-- 💳 **Track Loan Status**: Monitor application progress, approval status, and repayment schedules in real-time
-- 💰 **Make Payments**: Seamless loan repayment with instant on-chain settlement
-- 🎯 **Credit Building**: Build on-chain reputation through successful loan repayments
+- Browse lending pools with transparent rates and terms
+- Submit loan applications with purpose descriptions
+- Track application progress and repayment schedules in real-time
+- Make loan payments with instant on-chain settlement
+- Build on-chain reputation through successful repayments
 
 ### For Lenders
-- 🏦 **Create Lending Pools**: Deploy custom lending pools with configurable interest rates, terms, and minimum amounts
-- 📊 **Pool Analytics**: View detailed statistics on pool performance, available liquidity, and historical returns
-- ✅ **Approve Loans**: Review and approve loan applications with borrower credential verification
-- 💸 **Manage Funds**: Withdraw earnings and adjust pool parameters dynamically
-- 🔐 **Multi-signature Support**: Enterprise-grade security for institutional lenders
+- Create lending pools with configurable interest rates, terms, and minimum amounts
+- View pool analytics and historical returns
+- Review and approve loan applications
+- Manage funds and adjust pool parameters
+- Multi-signature support for institutional lenders
 
 ### Core Technology
-- ⚡ **Native XRPL Integration**: Direct blockchain integration without external wallet dependencies
-- 🎫 **Multi-Purpose Tokens (MPT)**: Tokenized debt instruments representing loans on-chain
-- 🔒 **Escrow Transactions**: Trustless loan security with conditional fund release
-- 🌐 **Verifiable Credentials**: DID-based identity system for borrower trust
-- 📱 **Real-time Updates**: WebSocket subscriptions for instant transaction feedback
-- 🎨 **Professional UI/UX**: Modern, responsive interface rivaling traditional fintech apps
+- Native XRPL integration without external wallet dependencies
+- Multi-Purpose Tokens (MPT) representing loans on-chain
+- Escrow transactions for trustless loan security
+- DID-based verifiable credentials
+- Real-time WebSocket updates for instant transaction feedback
 
 ---
 
-## 🎥 Demo Video
+## Demo Video
 
 <div align="center">
 
@@ -119,64 +115,52 @@ LendX leverages XRPL's incredibly low transaction costs (fractions of a cent) an
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 lendx/
-├── frontend/                # Next.js 14 LendX application (PRIMARY UI)
+├── frontend/                # Next.js 14 application
 │   ├── app/                # App router pages
-│   │   ├── (auth)/         # Authentication pages (signup)
-│   │   ├── (dashboard)/    # Main dashboard with lender/borrower views
-│   │   ├── layout.tsx     # Root layout with theme provider
-│   │   └── page.tsx       # Landing page
+│   │   ├── (auth)/         # Authentication pages
+│   │   └── (dashboard)/    # Main dashboard
 │   ├── components/         # React UI components
-│   │   ├── lendx/         # Core lending components (lender-view, borrower-view)
+│   │   ├── lendx/         # Core lending components
 │   │   ├── ui/            # Shadcn/ui base components
-│   │   ├── dashboard/     # Dashboard-specific components
-│   │   ├── chat/          # Chat interface components
-│   │   └── icons/         # Custom icon components
-│   ├── lib/               # Utility libraries
-│   │   ├── xrpl/         # XRPL integration (client, wallet, transactions, credentials)
-│   │   ├── auth0.ts      # Auth0 configuration
-│   │   └── utils.ts      # General utilities
-│   └── package.json      # Frontend dependencies
+│   │   └── dashboard/     # Dashboard components
+│   └── lib/               # Utility libraries
+│       └── xrpl/          # XRPL integration
 ├── backend/               # Python FastAPI services
 │   ├── xrpl_client/      # XRPL client library
-│   │   ├── client.py     # Connection and transaction handling
+│   │   ├── client.py     # Connection and transactions
 │   │   ├── mpt.py        # Multi-Purpose Token operations
-│   │   ├── escrow.py     # Escrow transaction handling
-│   │   ├── multisig.py   # Multi-signature account management
-│   │   └── exceptions.py # Custom XRPL exceptions
+│   │   ├── escrow.py     # Escrow transactions
+│   │   └── multisig.py   # Multi-signature accounts
 │   ├── api/              # FastAPI application
-│   └── tests/            # Python test suite
-├── pyproject.toml        # Python dependencies and configuration
+│   └── tests/            # Test suite
 └── README.md
 ```
 
 ---
 
-## 🚀 Getting Started
-
-Ready to run LendX locally? Follow these steps to get your development environment up and running.
+## Getting Started
 
 ### Prerequisites
 
-Before you begin, ensure you have the following installed:
-- **Node.js** 18+ and npm
-- **Python** 3.11+
-- **Git**
+- Node.js 18+
+- Python 3.11+
+- Git
 
-### Frontend (Next.js Application)
+### Frontend Setup
 
 ```bash
 # Clone the repository
 git clone https://github.com/sureenheer/lendx.git
-cd calhacks
+cd lendx
 
 # Navigate to frontend
 cd frontend
 
-# Install dependencies (legacy peer deps required for some XRPL packages)
+# Install dependencies
 npm install --legacy-peer-deps
 
 # Create environment file
@@ -188,7 +172,7 @@ npm run dev
 # Frontend runs on http://localhost:3000
 ```
 
-### Backend (Python Services)
+### Backend Setup
 
 ```bash
 # From project root
@@ -201,7 +185,7 @@ pip install -e .
 # Run tests
 pytest
 
-# Start FastAPI server (when implemented)
+# Start FastAPI server
 uvicorn backend.api.main:app --reload
 ```
 
@@ -214,13 +198,13 @@ The LendX frontend provides two main interfaces:
 1. **Landing Page** (`/`): Welcome page with Auth0 login/signup
 2. **Dashboard** (`/dashboard`): Main application with dual-role interface
 
-#### Lender Dashboard Features
+**Lender Dashboard:**
 - Create lending pools with custom rates and terms
 - View pool statistics and available liquidity
-- Approve/reject loan requests from borrowers
+- Approve/reject loan requests
 - Withdraw funds from pools
 
-#### Borrower Dashboard Features
+**Borrower Dashboard:**
 - Browse available lending pools
 - Apply for loans with purpose descriptions
 - Track loan status and repayment schedules
@@ -296,7 +280,6 @@ multisig_blob = create_multisig_tx(tx_json, [wallet1, wallet2])
 
 Create a `.env.local` file in the frontend directory:
 
-**Python Backend** (`backend/.env`):
 ```env
 # Auth0 Configuration
 AUTH0_SECRET='use [openssl rand -hex 32] to generate a 32 bytes value'
@@ -330,128 +313,122 @@ npm run build
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
-- ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) **Next.js 14**: React framework with App Router
-- ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript) **TypeScript**: Type-safe JavaScript development
-- ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.0-38B2AC?logo=tailwind-css) **Tailwind CSS**: Utility-first CSS framework
-- ![Shadcn/ui](https://img.shields.io/badge/Shadcn%2Fui-Latest-black) **Shadcn/ui**: Modern component library built on Radix UI
-- ![Auth0](https://img.shields.io/badge/Auth0-Latest-EB5424?logo=auth0) **Auth0**: Authentication and user management with Google SSO
-- ![Framer Motion](https://img.shields.io/badge/Framer%20Motion-11.0-0055FF?logo=framer) **Framer Motion**: Production-ready animation library
-- ![XRPL.js](https://img.shields.io/badge/XRPL.js-4.4.2-0052FF) **XRPL.js**: Direct XRPL blockchain integration
-- ![Zustand](https://img.shields.io/badge/Zustand-4.5-brown) **Zustand**: Lightweight state management
+- **Next.js 14**: React framework with App Router
+- **TypeScript**: Type-safe JavaScript development
+- **Tailwind CSS**: Utility-first CSS framework
+- **Shadcn/ui**: Component library built on Radix UI
+- **Auth0**: Authentication with Google SSO
+- **Framer Motion**: Animation library
+- **XRPL.js**: Direct XRPL blockchain integration
+- **Zustand**: State management
 
 ### Backend
-- ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python) **Python 3.11+**: Core backend language
-- ![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688?logo=fastapi) **FastAPI**: Modern, high-performance web framework
-- ![xrpl-py](https://img.shields.io/badge/xrpl--py-3.1-0052FF) **xrpl-py**: Official Python XRPL library
-- ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase) **Supabase**: PostgreSQL database with real-time capabilities
-- ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00) **SQLAlchemy**: ORM for database operations
-- ![Pydantic](https://img.shields.io/badge/Pydantic-2.0-E92063) **Pydantic**: Data validation and settings management
-- ![pytest](https://img.shields.io/badge/pytest-8.0-0A9EDC?logo=pytest) **pytest**: Comprehensive testing framework
+- **Python 3.11+**: Core backend language
+- **FastAPI**: High-performance web framework
+- **xrpl-py**: Official Python XRPL library
+- **Supabase**: PostgreSQL database
+- **SQLAlchemy**: ORM for database operations
+- **Pydantic**: Data validation
+- **pytest**: Testing framework
 
 ### Blockchain
-- ![XRPL](https://img.shields.io/badge/XRPL-Testnet%20%26%20Mainnet-0052FF) **XRP Ledger**: Layer-1 blockchain with native DeFi features
-- **Multi-Purpose Tokens (MPT)**: XRPL native token standard for loan representation
-- **Escrow**: Built-in escrow functionality for trustless transactions
-- **Multi-signature**: Native multi-sig support for institutional security
+- **XRP Ledger**: Layer-1 blockchain with native DeFi features
+- **Multi-Purpose Tokens (MPT)**: Native token standard for loan representation
+- **Escrow**: Built-in escrow functionality
+- **Multi-signature**: Native multi-sig support
 
 ### DevOps
-- ![Vercel](https://img.shields.io/badge/Vercel-Deployment-black?logo=vercel) **Vercel**: Frontend deployment platform
-- ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?logo=github-actions) **GitHub Actions**: Continuous integration and deployment
+- **Vercel**: Frontend deployment platform
+- **GitHub Actions**: CI/CD
 
 ---
 
-## 🎓 What We Learned
-
-Building LendX from concept to production taught us invaluable lessons about blockchain development, user experience, and financial technology:
+## What We Learned
 
 ### Technical Insights
-- **XRPL's Economic Advantage**: The power of XRPL's incredibly low transaction fees (fractions of a cent) makes microlending economically viable at scale - something impossible with Ethereum's gas fees or Bitcoin's transaction costs
-- **Multi-Purpose Tokens (MPT)**: XRPL's native MPT feature provides an elegant, gas-efficient solution for representing complex financial instruments on-chain without requiring smart contracts
-- **Native Integration > External Wallets**: Building native blockchain integration significantly improves user experience compared to external wallet dependencies like MetaMask or Xumm
-- **Identity Layer**: Verifiable credentials (DIDs) combined with traditional OAuth create a powerful identity verification system that bridges Web2 and Web3
+- XRPL's low transaction fees (fractions of a cent) make microlending economically viable at scale
+- Multi-Purpose Tokens (MPT) provide an efficient solution for representing complex financial instruments on-chain
+- Native blockchain integration significantly improves user experience compared to external wallet dependencies
+- Verifiable credentials (DIDs) combined with OAuth create a powerful identity verification system
 
 ### Design & UX Lessons
-- **Real-time Feedback is Critical**: Financial applications require immediate transaction feedback - users need to see their actions reflected instantly
-- **Progressive Disclosure**: Breaking complex lending workflows into simple, guided steps dramatically improves user confidence
-- **Dark Mode for Financial Apps**: Professional dark themes reduce eye strain during extended financial management sessions
+- Real-time feedback is critical for financial applications
+- Progressive disclosure improves user confidence in complex workflows
+- Professional dark themes reduce eye strain during extended sessions
 
 ### Development Best Practices
-- **Test-Driven Development**: Writing comprehensive test suites for database models and XRPL operations caught edge cases early
-- **Separation of Concerns**: Clean architecture with distinct layers (API, services, blockchain client) made the codebase maintainable
-- **Type Safety Everywhere**: TypeScript on frontend + Pydantic on backend eliminated entire classes of bugs
+- Test-driven development catches edge cases early
+- Clean architecture with distinct layers improves maintainability
+- Type safety (TypeScript + Pydantic) eliminates entire classes of bugs
 
 ---
 
-## 🏅 Accomplishments
-
-We're incredibly proud of what we achieved in 36 hours:
+## Accomplishments
 
 ### Technical Achievements
-- ✅ **Complete End-to-End Flow**: Full lending lifecycle from pool creation → loan application → approval → disbursement → repayment working on XRPL testnet
-- ✅ **Production-Grade UI/UX**: Professional interface that rivals traditional fintech applications like LendingClub or Prosper
-- ✅ **Native XRPL Integration**: Direct blockchain integration without external wallet dependencies, providing seamless user experience
-- ✅ **Comprehensive Python XRPL Library**: Robust, well-tested Python library for XRPL operations with full MPT, escrow, and multi-sig support
-- ✅ **Real-time Transaction Monitoring**: WebSocket-based real-time updates providing immediate feedback for all blockchain operations
-- ✅ **Database-Backed Application State**: Full PostgreSQL integration with SQLAlchemy ORM for indexing on-chain data
+- Complete end-to-end lending flow working on XRPL testnet
+- Production-grade UI/UX rivaling traditional fintech applications
+- Native XRPL integration without external wallet dependencies
+- Comprehensive Python XRPL library with MPT, escrow, and multi-sig support
+- Real-time transaction monitoring with WebSocket updates
+- PostgreSQL integration with SQLAlchemy ORM
 
 ### Business Impact
-- 🌍 **Addressing Real-World Problems**: Tackling financial exclusion affecting 1.7 billion people globally
-- 💰 **Economic Viability**: Demonstrated that microlending can be profitable with XRPL's low transaction costs
-- 🏦 **Institutional-Ready**: Multi-signature support makes the platform suitable for institutional lenders and DeFi protocols
-- 📈 **Scalable Architecture**: Built to support both individual peer-to-peer lending and large-scale lending pools
+- Addressing financial exclusion affecting 1.7 billion people globally
+- Demonstrated economic viability of microlending with XRPL's low costs
+- Multi-signature support suitable for institutional lenders
+- Scalable architecture for individual and large-scale lending
 
 ---
 
-## 🚀 Roadmap / What's Next
-
-LendX is just getting started. Here's our vision for the future:
+## Roadmap
 
 ### Phase 1: Mainnet Launch (Q1 2026)
 - [ ] Mainnet deployment on XRPL production network
-- [ ] Integrated fiat on/off ramps via payment providers (Stripe, PayPal, local payment networks)
-- [ ] Enhanced security audits and smart contract verification
-- [ ] Multi-currency support for local currency lending pools (USD, EUR, NGN, INR, BRL)
+- [ ] Integrated fiat on/off ramps
+- [ ] Security audits and smart contract verification
+- [ ] Multi-currency support (USD, EUR, NGN, INR, BRL)
 
 ### Phase 2: Credit Scoring & Risk Management (Q2 2026)
-- [ ] On-chain credit scoring algorithm using XRPL transaction history
-- [ ] Machine learning models for default prediction and risk assessment
+- [ ] On-chain credit scoring algorithm
+- [ ] Machine learning models for default prediction
 - [ ] Borrower reputation system with verifiable credentials
-- [ ] Automated interest rate adjustment based on borrower credit score
+- [ ] Automated interest rate adjustment
 
 ### Phase 3: Insurance & Risk Mitigation (Q3 2026)
-- [ ] Insurance pools to protect lenders against default risk
+- [ ] Insurance pools to protect lenders
 - [ ] Parametric insurance using on-chain oracles
-- [ ] Yield optimization for lenders through automated pool allocation
-- [ ] Default recovery mechanisms and liquidation protocols
+- [ ] Yield optimization for lenders
+- [ ] Default recovery mechanisms
 
 ### Phase 4: Mobile-First Expansion (Q4 2026)
-- [ ] Progressive Web App (PWA) optimized for smartphone usage in emerging markets
-- [ ] SMS-based notifications for loan status updates
+- [ ] Progressive Web App (PWA) for emerging markets
+- [ ] SMS-based notifications
 - [ ] Offline-first architecture for low-connectivity regions
 - [ ] Native mobile apps for iOS and Android
 
 ### Phase 5: Ecosystem Growth (2027+)
-- [ ] Integration with decentralized identity protocols (Self-Sovereign Identity)
-- [ ] Cross-chain lending support (Ethereum, Polygon, Solana)
-- [ ] Institutional lending products for banks and financial institutions
-- [ ] Developer API and SDK for third-party integrations
-- [ ] Decentralized governance through DAO structure
+- [ ] Self-sovereign identity integration
+- [ ] Cross-chain lending support
+- [ ] Institutional lending products
+- [ ] Developer API and SDK
+- [ ] Decentralized governance (DAO)
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help makes LendX better for everyone.
+We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help makes LendX better.
 
 ### How to Contribute
 
 1. **Fork the repository**
    ```bash
    git clone https://github.com/sureenheer/lendx.git
-   cd calhacks
+   cd lendx
    ```
 
 2. **Create a feature branch**
@@ -476,60 +453,49 @@ We welcome contributions from the community! Whether you're fixing bugs, adding 
 
 ### Development Guidelines
 
-- Follow the existing code style and conventions
-- Write tests for new features (we use pytest for backend, Jest for frontend)
+- Follow existing code style and conventions
+- Write tests for new features
 - Update documentation for API changes
 - Ensure all tests pass before submitting PR
 
-For detailed contributing guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-You are free to use, modify, and distribute this software for any purpose, including commercial use, as long as you include the original copyright and license notice.
-
 ---
 
-## 🙏 Acknowledgments
-
-We couldn't have built LendX without the support of:
+## Acknowledgments
 
 ### Awards & Recognition
 - **Cal Hacks 2025** - First Place Winner
 - **Ripple** - Best Use of XRP Ledger Award
 
 ### Technology Partners
-- **[XRPL Foundation](https://xrpl.org/)** - For comprehensive XRP Ledger documentation and developer resources
-- **[Ripple](https://ripple.com/)** - For pioneering enterprise blockchain solutions and supporting the XRPL ecosystem
-- **[Auth0](https://auth0.com/)** - For providing robust authentication and identity management services
-- **[Vercel](https://vercel.com/)** - For seamless frontend deployment and hosting
-- **[Supabase](https://supabase.com/)** - For PostgreSQL database infrastructure
+- **[XRPL Foundation](https://xrpl.org/)** - XRP Ledger documentation and developer resources
+- **[Ripple](https://ripple.com/)** - Enterprise blockchain solutions and XRPL ecosystem support
+- **[Auth0](https://auth0.com/)** - Authentication and identity management
+- **[Vercel](https://vercel.com/)** - Frontend deployment and hosting
+- **[Supabase](https://supabase.com/)** - PostgreSQL database infrastructure
 
 ### Community & Support
-- **Cal Hacks 2025 Organizers** - For creating an amazing hackathon experience
-- **XRPL Developer Community** - For invaluable support and technical guidance
-- **All Cal Hacks 2025 Participants** - For the inspiring collaboration and innovation
-
-### Special Thanks
-To everyone who believed in the vision of democratizing access to credit through decentralized finance.
+- **Cal Hacks 2025 Organizers**
+- **XRPL Developer Community**
+- **All Cal Hacks 2025 Participants**
 
 ---
 
 <div align="center">
 
-**Built with ❤️ at Cal Hacks 2025**
+**Built at Cal Hacks 2025**
 
 [![Cal Hacks](https://img.shields.io/badge/Cal%20Hacks-2025-gold?style=for-the-badge)](https://calhacks.io/)
 [![XRPL](https://img.shields.io/badge/Powered%20by-XRPL-0052FF?style=for-the-badge)](https://xrpl.org/)
 
 **[Live Demo](https://lendxrp.vercel.app)** • **[Watch Demo Video](https://www.youtube.com/watch?v=6GD9fiZIC9I)** • **[Report Bug](https://github.com/sureenheer/lendx/issues)** • **[Request Feature](https://github.com/sureenheer/lendx/issues)**
-
----
-
-### ⭐ If you found LendX helpful, please consider giving us a star on GitHub! ⭐
 
 ---
 
